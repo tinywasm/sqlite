@@ -1,24 +1,23 @@
-# SQLite Adapter - Phase 2 (Refinements)
+# SQLite Adapter - API Documentation Plan
 
-This master prompt continues from the previous integration round, refining the API according to the latest domain requirements.
+This master prompt outlines the specific steps to create an LLM-optimized API usage documentation for the `tinywasm/sqlite` adapter. 
 
 ## Development Rules
+- **WASM / TinyGo Compatibility (`gotest` requirement):** You MUST replace all usages of standard `fmt` and `strings` with `github.com/tinywasm/fmt` in our codebase.
 - Constraints remain active: `gotest`, SRP, standard DI, pure stdlib testing, 500 lines limit, and flat hierarchy.
-- **WASM / TinyGo Compatibility (`gotest` requirement):** You MUST replace all usages of standard `fmt` and `strings` with `github.com/tinywasm/fmt`. This is strictly required for the `gotest` command to successfully pass its validations.
 
 ## Execution Steps
 
-### 1. Module Path Correction
-- Update `go.mod` to establish the definitive new ecosystem package path: `module github.com/tinywasm/sqlite` (replacing the old `github.com/cdvelop/sqlite`).
+### 1. Create LLM-Optimized API Documentation (`docs/SKILL.md`)
+- **Goal**: Provide a highly condensed, minimum-token API reference so that any AI/LLM knows exactly how to instantiate and consume this `sqlite` adapter.
+- **Action**: Create a new file `docs/SKILL.md`. 
+- **Content Requirements**:
+  - Show the standard way to define a model (struct with `TableName`, `Columns`, `Values`, `Pointers` methods).
+  - Show exactly how to initialize the connection: `db, err := sqlite.New(":memory:")`. Note that this returns `*orm.DB` directly.
+  - Show a dense, minimal sequence of CRUD operations: `db.Create(m)`, `db.Query(m).Where(orm.Eq("col", val)).ReadOne()`, `db.Update(...)`, `db.Delete(...)`, and `db.Tx(func(tx *orm.DB) error { ... })`.
+  - Document how to properly close the connection `sqlite.Close(db)` and execute raw queries `sqlite.ExecSQL(db, "...")`.
+  - **Crucial**: Omit verbose human-oriented explanations. Use only explicit, heavily commented code blocks with strict signatures. The focus MUST be on saving context window tokens for LLMs.
 
-### 2. Direct ORM Injection (`adapter.go`)
-- The user expressed that having to manually wrap `sqlite.New(dsn)` with `orm.New()` is tedious.
-- Refactor the constructor `New(dsn string)` to **directly return an `*orm.DB`**.
-- Example target signature: `func New(dsn string) (*orm.DB, error)`.
-- The internal logic of `New` will continue creating the `*sql.DB` connection, instantiating the `SqliteAdapter`, but it must now wrap it by calling `orm.New(adapter)` and return the ready-to-use `*orm.DB` instance.
-- The `SqliteAdapter` struct itself should remain available internally, preserving its exact implementation of `orm.Adapter` and `orm.TxAdapter`.
-- `Close()` and `ExecSQL(query)` are still desirable behaviors on the internal connection. Ensure the architecture allows graceful tear down (e.g., exposing a wrapper method if needed).
-
-### 3. Tests & Verification (`sqlite_test.go` or `tests/`)
-- Adapt existing tests to operate directly with the newly returned `*orm.DB` instance instead of wrapping it manually within the tests.
-- Re-validate logic by running `gotest`.
+### 2. Update the README index
+- **Goal**: Make the new documentation discoverable.
+- **Action**: Add a link to the newly created `SKILL.md` in `README.md` under a "Documentation" section.
