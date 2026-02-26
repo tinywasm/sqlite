@@ -1,10 +1,10 @@
 package sqlite_test
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
-	"github.com/cdvelop/sqlite"
+	"github.com/tinywasm/sqlite"
 	"github.com/tinywasm/orm"
 )
 
@@ -32,14 +32,14 @@ func (u *User) Pointers() []any {
 
 func TestSqliteAdapter(t *testing.T) {
 	// Setup
-	adapter, err := sqlite.New(":memory:")
+	db, err := sqlite.New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create adapter: %v", err)
 	}
-	defer adapter.Close()
+	defer sqlite.Close(db)
 
 	// Create table
-	err = adapter.ExecSQL(`
+	err = sqlite.ExecSQL(db, `
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
@@ -50,7 +50,7 @@ func TestSqliteAdapter(t *testing.T) {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	db := orm.New(adapter)
+	// db := orm.New(adapter) -> db is already *orm.DB
 
 	// Test Create
 	user := &User{Name: "Alice", Age: 30}
@@ -122,13 +122,13 @@ func TestSqliteAdapter(t *testing.T) {
 }
 
 func TestTransaction(t *testing.T) {
-	adapter, err := sqlite.New(":memory:")
+	db, err := sqlite.New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create adapter: %v", err)
 	}
-	defer adapter.Close()
+	defer sqlite.Close(db)
 
-	err = adapter.ExecSQL(`
+	err = sqlite.ExecSQL(db, `
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
@@ -139,7 +139,7 @@ func TestTransaction(t *testing.T) {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	db := orm.New(adapter)
+	// db := orm.New(adapter) -> already done
 
 	// Test Commit
 	err = db.Tx(func(tx *orm.DB) error {
@@ -165,7 +165,7 @@ func TestTransaction(t *testing.T) {
 		if err := tx.Create(&User{Name: "Dave", Age: 50}); err != nil {
 			return err
 		}
-		return fmt.Errorf("rollback")
+		return errors.New("rollback")
 	})
 	if err == nil {
 		t.Fatalf("Tx rollback should have returned error")

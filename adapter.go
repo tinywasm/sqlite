@@ -2,9 +2,17 @@ package sqlite
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
+	"sync"
 
+	"github.com/tinywasm/orm"
+	tfmt "github.com/tinywasm/fmt"
 	_ "modernc.org/sqlite" // SQLite driver
+)
+
+var (
+	instances = make(map[*orm.DB]*SqliteAdapter)
+	mu        sync.Mutex
 )
 
 // SqliteAdapter implements orm.Adapter for SQLite.
@@ -13,17 +21,51 @@ type SqliteAdapter struct {
 }
 
 // New creates a new SqliteAdapter.
-func New(dsn string) (*SqliteAdapter, error) {
+func New(dsn string) (*orm.DB, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
+		return nil, errors.New(tfmt.Sprintf("failed to open sqlite database: %s", err))
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping sqlite database: %w", err)
+		return nil, errors.New(tfmt.Sprintf("failed to ping sqlite database: %s", err))
 	}
 
-	return &SqliteAdapter{db: db}, nil
+	adapter := &SqliteAdapter{db: db}
+	ormDB := orm.New(adapter)
+
+	mu.Lock()
+	instances[ormDB] = adapter
+	mu.Unlock()
+
+	return ormDB, nil
+}
+
+// Close closes the database connection.
+func Close(db *orm.DB) error {
+	mu.Lock()
+	adapter, ok := instances[db]
+	if ok {
+		delete(instances, db)
+	}
+	mu.Unlock()
+
+	if !ok {
+		return errors.New("database instance not found or already closed")
+	}
+	return adapter.Close()
+}
+
+// ExecSQL executes raw SQL. Useful for migrations.
+func ExecSQL(db *orm.DB, query string, args ...any) error {
+	mu.Lock()
+	adapter, ok := instances[db]
+	mu.Unlock()
+
+	if !ok {
+		return errors.New("database instance not found")
+	}
+	return adapter.ExecSQL(query, args...)
 }
 
 // Close closes the database connection.
