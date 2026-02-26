@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cdvelop/sqlite"
 	"github.com/tinywasm/orm"
+	"github.com/tinywasm/sqlite"
 )
 
 type User struct {
@@ -32,14 +32,14 @@ func (u *User) Pointers() []any {
 
 func TestSqliteAdapter(t *testing.T) {
 	// Setup
-	adapter, err := sqlite.New(":memory:")
+	db, err := sqlite.New(":memory:")
 	if err != nil {
-		t.Fatalf("failed to create adapter: %v", err)
+		t.Fatalf("failed to create db: %v", err)
 	}
-	defer adapter.Close()
+	defer sqlite.Close(db)
 
 	// Create table
-	err = adapter.ExecSQL(`
+	err = sqlite.ExecSQL(db, `
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
@@ -49,8 +49,6 @@ func TestSqliteAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
-
-	db := orm.New(adapter)
 
 	// Test Create
 	user := &User{Name: "Alice", Age: 30}
@@ -122,13 +120,13 @@ func TestSqliteAdapter(t *testing.T) {
 }
 
 func TestTransaction(t *testing.T) {
-	adapter, err := sqlite.New(":memory:")
+	db, err := sqlite.New(":memory:")
 	if err != nil {
-		t.Fatalf("failed to create adapter: %v", err)
+		t.Fatalf("failed to create db: %v", err)
 	}
-	defer adapter.Close()
+	defer sqlite.Close(db)
 
-	err = adapter.ExecSQL(`
+	err = sqlite.ExecSQL(db, `
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
@@ -138,8 +136,6 @@ func TestTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
-
-	db := orm.New(adapter)
 
 	// Test Commit
 	err = db.Tx(func(tx *orm.DB) error {
