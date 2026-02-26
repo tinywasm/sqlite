@@ -1,14 +1,2 @@
-github.com/cdvelop/input v0.0.88 h1:1yZe77hb4Qhw9k664xJFY2WSV0MbuMPRUx+cKlmgchE=
-github.com/cdvelop/input v0.0.88/go.mod h1:tuuQyZ6l3SUxoq+NDwWHVUbln69Aesx15xkQzAt+irk=
-github.com/cdvelop/maps v0.0.8 h1:7pc/iRC5mhf91TB8TaGoXkyFloH1pH1TWbLBR4kZhZY=
-github.com/cdvelop/maps v0.0.8/go.mod h1:00f/VqX/M0iiiY/BG2KxfxfFuoU5jAaNLEDGw7Tlduk=
-github.com/cdvelop/strings v0.0.9 h1:yDh2msl3EQja0dHw+oOHfD9ymQMa50KakKTkjsXDnvw=
-github.com/cdvelop/strings v0.0.9/go.mod h1:zNexDeXHRETbMmlmNThQeM7ksRsvzrphsCfwuSxaURk=
-github.com/cdvelop/timeserver v0.0.36 h1:q+upU3ct7zwYIeemBkH02ujUQk/46OIGZEx9r8VQv9E=
-github.com/cdvelop/timeserver v0.0.36/go.mod h1:NLT9JU5ZVwuTbbIAsxKvNseKqxrtdtlKpNKKbAFkHlI=
-github.com/cdvelop/timetools v0.0.42 h1:yfSsGsfTw4QdXylseYXrmoGEtwzYJ/kGlF8a22Lv4f4=
-github.com/cdvelop/timetools v0.0.42/go.mod h1:FLXt6dvkY4x3rjgRYX7J5XK2H6aHIdxV+fBA+Apj7J8=
-github.com/cdvelop/unixid v0.0.53 h1:OCuF8GcPK09U5PdOOzmUOmw17ceIL9DY+klIBaYOpp4=
-github.com/cdvelop/unixid v0.0.53/go.mod h1:tSUjTKO4Pz9VE+cfPY5k4dTYiMT8w/jqU3h/7uJ6snE=
-github.com/mattn/go-sqlite3 v1.14.20 h1:BAZ50Ns0OFBNxdAqFhbZqdPcht1Xlb16pDCqkq1spr0=
-github.com/mattn/go-sqlite3 v1.14.20/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
+github.com/mattn/go-sqlite3 v1.14.22 h1:2gZY6PC6kBnID23Tichd1K+Z0oS6nE/XwU+Vz/5o4kU=
+github.com/mattn/go-sqlite3 v1.14.22/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=

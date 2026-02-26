@@ -3,8 +3,16 @@ package sqlite_test
 import (
 	"testing"
 
+	"github.com/cdvelop/objectdb/tests"
 	"github.com/cdvelop/sqlite"
 )
+
+func Test_SqliteMemoryMode(t *testing.T) {
+
+	db := sqlite.NewConnection("", "test_memory", true)
+	tests.Run(db, t)
+
+}
 
 func Test_SqlitePersistenMode(t *testing.T) {
 	//test.....
@@ -13,12 +21,6 @@ func Test_SqlitePersistenMode(t *testing.T) {
 
 	db := sqlite.NewConnection(root, db_name, false)
 
-	db.TestCrudStart(t)
-
-}
-
-func Test_SqliteMemoryMode(t *testing.T) {
-	db := sqlite.NewConnection("", "test_memory", true)
-	db.TestCrudStart(t)
+	tests.Run(db, t)
 
 }
