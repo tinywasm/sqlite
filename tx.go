@@ -2,8 +2,8 @@ package sqlite
 
 import (
 	"database/sql"
-	"errors"
-	tfmt "github.com/tinywasm/fmt"
+
+	"github.com/tinywasm/fmt"
 
 	"github.com/tinywasm/orm"
 )
@@ -74,6 +74,6 @@ func (s *SqliteTxBound) Execute(q orm.Query, m orm.Model, factory func() orm.Mod
 		return rows.Err()
 
 	default:
-		return errors.New(tfmt.Sprintf("unsupported action: %v", q.Action))
+		return fmt.Errf("unsupported action: %v", q.Action)
 	}
 }

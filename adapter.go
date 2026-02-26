@@ -2,11 +2,10 @@ package sqlite
 
 import (
 	"database/sql"
-	"errors"
 	"sync"
 
+	"github.com/tinywasm/fmt"
 	"github.com/tinywasm/orm"
-	tfmt "github.com/tinywasm/fmt"
 	_ "modernc.org/sqlite" // SQLite driver
 )
 
@@ -24,11 +23,11 @@ type SqliteAdapter struct {
 func New(dsn string) (*orm.DB, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, errors.New(tfmt.Sprintf("failed to open sqlite database: %s", err))
+		return nil, fmt.Err("failed to open sqlite database: %s", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, errors.New(tfmt.Sprintf("failed to ping sqlite database: %s", err))
+		return nil, fmt.Err("failed to ping sqlite database: %s", err)
 	}
 
 	adapter := &SqliteAdapter{db: db}
@@ -51,7 +50,7 @@ func Close(db *orm.DB) error {
 	mu.Unlock()
 
 	if !ok {
-		return errors.New("database instance not found or already closed")
+		return fmt.Err("database instance not found or already closed")
 	}
 	return adapter.Close()
 }
@@ -63,7 +62,7 @@ func ExecSQL(db *orm.DB, query string, args ...any) error {
 	mu.Unlock()
 
 	if !ok {
-		return errors.New("database instance not found")
+		return fmt.Err("database instance not found")
 	}
 	return adapter.ExecSQL(query, args...)
 }
