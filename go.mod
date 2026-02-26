@@ -1,4 +1,4 @@
-module github.com/cdvelop/sqlite
+module github.com/tinywasm/sqlite
 
 go 1.25.2
 
