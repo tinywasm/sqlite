@@ -1,12 +1,11 @@
 package sqlite_test
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/tinywasm/fmt"
-
-	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
+	"github.com/tinywasm/orm"
 )
 
 type User struct {
@@ -166,7 +165,7 @@ func TestTransaction(t *testing.T) {
 		if err := tx.Create(&User{Name: "Dave", Age: 50}); err != nil {
 			return err
 		}
-		return fmt.Err("rollback")
+		return errors.New("rollback")
 	})
 	if err == nil {
 		t.Fatalf("Tx rollback should have returned error")
