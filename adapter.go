@@ -2,41 +2,36 @@ package sqlite
 
 import (
 	"database/sql"
-	"errors"
 	"sync"
 
 	"github.com/tinywasm/orm"
 
-	tfmt "github.com/tinywasm/fmt"
+	. "github.com/tinywasm/fmt"
 	_ "modernc.org/sqlite" // SQLite driver
 )
 
 var (
-	dbRegistry = make(map[*orm.DB]*SqliteAdapter)
+	dbRegistry = make(map[*orm.DB]*sql.DB)
 	dbMu       sync.RWMutex
 )
 
-// SqliteAdapter implements orm.Adapter for SQLite.
-type SqliteAdapter struct {
-	db *sql.DB
-}
-
-// New creates a new SqliteAdapter and wraps it in an orm.DB.
-func New(dsn string) (*orm.DB, error) {
+// Open creates a new sqlite connection and wraps it in an orm.DB.
+func Open(dsn string) (*orm.DB, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, errors.New(tfmt.Sprintf("failed to open sqlite database: %v", err))
+		return nil, Errf("failed to open sqlite database: %v", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, errors.New(tfmt.Sprintf("failed to ping sqlite database: %v", err))
+		return nil, Errf("failed to ping sqlite database: %v", err)
 	}
 
-	adapter := &SqliteAdapter{db: db}
-	ormDB := orm.New(adapter)
+	exec := &sqliteExecutor{db: db}
+	compiler := sqliteCompiler{}
+	ormDB := orm.New(exec, compiler)
 
 	dbMu.Lock()
-	dbRegistry[ormDB] = adapter
+	dbRegistry[ormDB] = db
 	dbMu.Unlock()
 
 	return ormDB, nil
@@ -45,39 +40,29 @@ func New(dsn string) (*orm.DB, error) {
 // Close closes the database connection associated with the orm.DB.
 func Close(db *orm.DB) error {
 	dbMu.Lock()
-	adapter, ok := dbRegistry[db]
+	sqlDB, ok := dbRegistry[db]
 	if ok {
 		delete(dbRegistry, db)
 	}
 	dbMu.Unlock()
 
 	if !ok {
-		return errors.New("database instance not found in sqlite registry")
+		return Err("database instance not found in sqlite registry")
 	}
 
-	return adapter.Close()
+	return sqlDB.Close()
 }
 
-// ExecSQL executes raw SQL using the adapter associated with the orm.DB.
+// ExecSQL executes raw SQL. Useful for testing or migrations.
 func ExecSQL(db *orm.DB, query string, args ...any) error {
 	dbMu.RLock()
-	adapter, ok := dbRegistry[db]
+	sqlDB, ok := dbRegistry[db]
 	dbMu.RUnlock()
 
 	if !ok {
-		return errors.New("database instance not found in sqlite registry")
+		return Err("database instance not found in sqlite registry")
 	}
 
-	return adapter.ExecSQL(query, args...)
-}
-
-// Close closes the database connection.
-func (s *SqliteAdapter) Close() error {
-	return s.db.Close()
-}
-
-// ExecSQL executes raw SQL. Useful for migrations.
-func (s *SqliteAdapter) ExecSQL(query string, args ...any) error {
-	_, err := s.db.Exec(query, args...)
+	_, err := sqlDB.Exec(query, args...)
 	return err
 }
