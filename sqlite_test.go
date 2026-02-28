@@ -87,7 +87,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	// Wait, the test uses the fluent API.
 	var results []*User
 	q := db.Query(&User{})
-	q.GroupBy("age").OrderBy("age", "DESC").Limit(1).Offset(0)
+	q.GroupBy("age").OrderBy("age").Desc().Limit(1).Offset(0)
 	err = q.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
 		results = append(results, m.(*User))
 	})
@@ -120,7 +120,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 
 	var totals []UserTotalModel
 	qtotals := db.Query(&UserTotalModel{})
-	qtotals.OrderBy("total", "DESC")
+	qtotals.OrderBy("total").Desc()
 	err = qtotals.ReadAll(func() orm.Model { return &UserTotalModel{} }, func(m orm.Model) {
 		totals = append(totals, *m.(*UserTotalModel))
 	})
@@ -147,8 +147,8 @@ type UserTotalModel struct {
 
 func (u *UserTotalModel) TableName() string { return "user_totals" }
 func (u *UserTotalModel) Columns() []string { return []string{"name", "total"} }
-func (u *UserTotalModel) Values() []any { return []any{u.Name, u.Total} }
-func (u *UserTotalModel) Pointers() []any { return []any{&u.Name, &u.Total} }
+func (u *UserTotalModel) Values() []any     { return []any{u.Name, u.Total} }
+func (u *UserTotalModel) Pointers() []any   { return []any{&u.Name, &u.Total} }
 
 func (u *User) TableName() string {
 	return "users"
@@ -195,7 +195,7 @@ func TestSqliteAdapter(t *testing.T) {
 	// Test ReadOne
 	readUser := &User{}
 	q := db.Query(readUser)
-	q.Where(orm.Eq("name", "Alice"))
+	q.Where("name").Eq("Alice")
 	if err := q.ReadOne(); err != nil {
 		t.Fatalf("ReadOne failed: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestSqliteAdapter(t *testing.T) {
 	// Verify Update
 	readUser = &User{}
 	q = db.Query(readUser)
-	q.Where(orm.Eq("name", "Alice"))
+	q.Where("name").Eq("Alice")
 	if err := q.ReadOne(); err != nil {
 		t.Fatalf("ReadOne after Update failed: %v", err)
 	}
@@ -277,8 +277,8 @@ type BadModel struct {
 
 func (b *BadModel) TableName() string { return "" }
 func (b *BadModel) Columns() []string { return nil }
-func (b *BadModel) Values() []any { return nil }
-func (b *BadModel) Pointers() []any { return nil }
+func (b *BadModel) Values() []any     { return nil }
+func (b *BadModel) Pointers() []any   { return nil }
 
 type NoColsModel struct {
 	Name string
@@ -286,295 +286,138 @@ type NoColsModel struct {
 
 func (n *NoColsModel) TableName() string { return "no_cols" }
 func (n *NoColsModel) Columns() []string { return nil }
-func (n *NoColsModel) Values() []any { return nil }
-func (n *NoColsModel) Pointers() []any { return nil }
+func (n *NoColsModel) Values() []any     { return nil }
+func (n *NoColsModel) Pointers() []any   { return nil }
 
-func TestTranslateQueryErrors(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open db: %v", err)
-	}
-	defer sqlite.Close(db)
-
-	err = sqlite.ExecSQL(db, `CREATE TABLE no_cols (id INTEGER PRIMARY KEY);`)
-	if err != nil {
-		t.Fatalf("failed to create table: %v", err)
-	}
-
-	// 1. missing table insert
-	err = db.Create(&BadModel{})
+func TestCompilerErrors(t *testing.T) {
+	// Test internal translateQuery default switch case
+	_, _, err := sqlite.ExportTranslateQuery(orm.Query{Action: 99})
 	if err == nil {
-		t.Fatalf("expected error for insert with no table")
+		t.Fatalf("expected error for unsupported action in translate")
 	}
 
-	// 2. missing columns insert
-	err = db.Create(&NoColsModel{})
+	// Test insert without table name
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Columns: []string{"id"}})
 	if err == nil {
-		t.Fatalf("expected error for insert with no columns")
+		t.Fatalf("expected error for insert without table")
 	}
 
-	// 3. missing table select
-	q := db.Query(&BadModel{})
-	err = q.ReadOne()
+	// Test insert without columns
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Table: "t"})
 	if err == nil {
-		t.Fatalf("expected error for select with no table")
+		t.Fatalf("expected error for insert without columns")
 	}
 
-	// 4. missing table update
-	err = db.Update(&BadModel{})
+	// Test select without table
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadOne})
 	if err == nil {
-		t.Fatalf("expected error for update with no table")
+		t.Fatalf("expected error for select without table")
 	}
 
-	// 5. missing columns update
-	err = db.Update(&NoColsModel{})
+	// Test update without table
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Columns: []string{"id"}})
 	if err == nil {
-		t.Fatalf("expected error for update with no columns")
+		t.Fatalf("expected error for update without table")
 	}
 
-	// 6. missing table delete
-	err = db.Delete(&BadModel{})
+	// Test update without columns
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Table: "t"})
 	if err == nil {
-		t.Fatalf("expected error for delete with no table")
+		t.Fatalf("expected error for update without columns")
 	}
 
-	// 7. Error cases in adapter.Execute
-	// ReadAll query failure
-	adapter := sqlite.GetAdapter(db)
-	err = adapter.Execute(orm.Query{
-		Action: orm.ActionReadAll,
-		Table:  "non_existent_table",
-	}, nil, func() orm.Model { return &User{} }, func(m orm.Model) {})
+	// Test delete without table
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionDelete})
 	if err == nil {
-		t.Fatalf("expected error when ReadAll on non-existent table")
-	}
-
-	// Create query failure
-	err = adapter.Execute(orm.Query{
-		Action:  orm.ActionCreate,
-		Table:   "non_existent_table",
-		Columns: []string{"id"},
-		Values:  []any{1},
-	}, nil, nil, nil)
-	if err == nil {
-		t.Fatalf("expected error when Create on non-existent table")
-	}
-
-	// ReadOne query failure (query error)
-	err = adapter.Execute(orm.Query{
-		Action: orm.ActionReadOne,
-		Table:  "non_existent_table",
-	}, &User{}, nil, nil)
-	if err == nil {
-		t.Fatalf("expected error when ReadOne on non-existent table")
-	}
-
-	// tx.Execute Error cases
-	txAdapter, err := sqlite.GetTxAdapter(adapter)
-	if err != nil {
-		t.Fatalf("failed to begin tx: %v", err)
-	}
-
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionReadAll,
-		Table:  "non_existent_table",
-	}, nil, func() orm.Model { return &User{} }, func(m orm.Model) {})
-	if err == nil {
-		t.Fatalf("expected error when Tx.ReadAll on non-existent table")
-	}
-
-	err = txAdapter.Execute(orm.Query{
-		Action:  orm.ActionCreate,
-		Table:   "non_existent_table",
-		Columns: []string{"id"},
-		Values:  []any{1},
-	}, nil, nil, nil)
-	if err == nil {
-		t.Fatalf("expected error when Tx.Create on non-existent table")
-	}
-
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionReadOne,
-		Table:  "non_existent_table",
-	}, &User{}, nil, nil)
-	if err == nil {
-		t.Fatalf("expected error when Tx.ReadOne on non-existent table")
-	}
-
-	// ReadOne scanning error. We can trigger this by querying a table with different schema.
-	_ = sqlite.ExecSQL(db, `CREATE TABLE scan_err_tbl (id TEXT); INSERT INTO scan_err_tbl VALUES ('notanint');`)
-
-	err = adapter.Execute(orm.Query{
-		Action: orm.ActionReadOne,
-		Table:  "scan_err_tbl",
-	}, &User{}, nil, nil)
-	if err == nil {
-		t.Fatalf("expected scan error on ReadOne, got nil")
-	}
-
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionReadOne,
-		Table:  "scan_err_tbl",
-	}, &User{}, nil, nil)
-	if err == nil {
-		t.Fatalf("expected scan error on Tx.ReadOne, got nil")
-	}
-
-	// ReadAll scanning error.
-	err = adapter.Execute(orm.Query{
-		Action: orm.ActionReadAll,
-		Table:  "scan_err_tbl",
-	}, nil, func() orm.Model { return &User{} }, func(m orm.Model) {})
-	if err == nil {
-		t.Fatalf("expected scan error on ReadAll, got nil")
-	}
-
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionReadAll,
-		Table:  "scan_err_tbl",
-	}, nil, func() orm.Model { return &User{} }, func(m orm.Model) {})
-	if err == nil {
-		t.Fatalf("expected scan error on Tx.ReadAll, got nil")
-	}
-
-	_ = txAdapter.Rollback()
-
-	// BeginTx failure (e.g. on closed DB)
-	sqlite.Close(db)
-	_, err = adapter.BeginTx()
-	if err == nil {
-		t.Fatalf("expected BeginTx error on closed db")
+		t.Fatalf("expected error for delete without table")
 	}
 }
 
-func TestTranslateQueryAdditionalErrors(t *testing.T) {
+func TestExecutorErrors(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
 	defer sqlite.Close(db)
 
-	adapter := sqlite.GetAdapter(db)
+	exec := sqlite.GetExecutor(db)
 
-	// Create with empty condition (will not error on translate, just test coverage of empty cases)
-	err = adapter.Execute(orm.Query{
-		Action:  orm.ActionCreate,
-		Table:   "users",
-		Columns: []string{"name"},
-		Values:  []any{"test"},
-	}, nil, nil, nil)
-	// it will fail at DB execution because we didn't create table, that's fine.
+	// Test Exec error
+	err = exec.Exec("INVALID SQL")
+	if err == nil {
+		t.Fatalf("expected error on invalid sql format")
+	}
+
+	// Test QueryRow error
+	row := exec.QueryRow("SELECT * FROM non_existent")
+	err = row.Scan()
+	if err == nil {
+		t.Fatalf("expected error scanning from invalid table")
+	}
+
+	// Test Query error
+	_, err = exec.Query("SELECT * FROM non_existent")
+	if err == nil {
+		t.Fatalf("expected error querying invalid table")
+	}
+
+	// BeginTx failure
+	sqlDB := sqlite.GetSqlDB(db)
+	sqlDB.Close() // Force BeginTx to fail
+
+	txExec, ok := exec.(orm.TxExecutor)
+	if !ok {
+		t.Fatalf("executor does not implement TxExecutor")
+	}
+	_, err = txExec.BeginTx()
+	if err == nil {
+		t.Fatalf("expected BeginTx error on closed DB")
+	}
 }
 
-func TestTxExecutePaths(t *testing.T) {
+func TestTxExecutorErrors(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
 	defer sqlite.Close(db)
 
-	err = sqlite.ExecSQL(db, `
-		CREATE TABLE users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT,
-			age INTEGER
-		);
-	`)
+	txExec, err := sqlite.GetTxExecutor(db)
 	if err != nil {
-		t.Fatalf("failed to create table: %v", err)
+		t.Fatalf("failed to open tx: %v", err)
 	}
 
-	adapter := sqlite.GetAdapter(db)
-	txAdapter, err := sqlite.GetTxAdapter(adapter)
-	if err != nil {
-		t.Fatalf("failed to start tx: %v", err)
-	}
-
-	// Tx.Update
-	err = txAdapter.Execute(orm.Query{
-		Action:  orm.ActionUpdate,
-		Table:   "users",
-		Columns: []string{"name"},
-		Values:  []any{"test"},
-	}, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("unexpected error on Tx.Update: %v", err)
-	}
-
-	// Tx.Delete
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionDelete,
-		Table:  "users",
-	}, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("unexpected error on Tx.Delete: %v", err)
-	}
-
-	// Tx.ReadOne NoRows
-	u := &User{}
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionReadOne,
-		Table:  "users",
-	}, u, nil, nil)
-	if err != nil {
-		t.Fatalf("expected nil for no rows on Tx.ReadOne, got %v", err)
-	}
-
-	// Tx.ReadAll
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionReadAll,
-		Table:  "users",
-	}, nil, func() orm.Model { return &User{} }, func(m orm.Model) {})
-	if err != nil {
-		t.Fatalf("unexpected error on Tx.ReadAll: %v", err)
-	}
-
-	// Tx translation error
-	err = txAdapter.Execute(orm.Query{
-		Action: orm.ActionCreate, // missing table
-	}, nil, nil, nil)
+	// Test Exec
+	err = txExec.Exec("INVALID SQL")
 	if err == nil {
-		t.Fatalf("expected translation error on Tx.Create with no table")
+		t.Fatalf("expected error on invalid tx sql")
 	}
 
-	_ = txAdapter.Commit()
-}
-
-func TestExecuteUnsupportedAction(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("failed to open db: %v", err)
-	}
-	defer sqlite.Close(db)
-
-	adapter := sqlite.GetAdapter(db)
-	if adapter == nil {
-		t.Fatalf("failed to get adapter")
-	}
-
-	q := orm.Query{
-		Action:  99,
-		Table:   "users",
-		Columns: []string{"id"},
-	}
-
-	err = adapter.Execute(q, &User{}, nil, nil)
+	// Test QueryRow
+	row := txExec.QueryRow("SELECT * FROM non_existent")
+	err = row.Scan()
 	if err == nil {
-		t.Fatalf("expected error for unsupported action, got nil")
+		t.Fatalf("expected error scanning tx invalid table")
 	}
 
-	// Test unsupported action inside transaction
-	txAdapter, err := sqlite.GetTxAdapter(adapter)
-	if err != nil {
-		t.Fatalf("failed to begin tx: %v", err)
-	}
-
-	err = txAdapter.Execute(q, &User{}, nil, nil)
+	// Test Query
+	_, err = txExec.Query("SELECT * FROM non_existent")
 	if err == nil {
-		t.Fatalf("expected error for unsupported action inside tx, got nil")
+		t.Fatalf("expected error querying tx invalid table")
 	}
 
-	_ = txAdapter.Rollback()
+	// Rollback
+	err = txExec.Rollback()
+	if err != nil {
+		t.Fatalf("failed rollback: %v", err)
+	}
+
+	// Commit
+	txExec2, _ := sqlite.GetTxExecutor(db)
+	err = txExec2.Commit()
+	if err != nil {
+		t.Fatalf("commit failed: %v", err)
+	}
 }
 
 func TestTransaction(t *testing.T) {
@@ -609,7 +452,7 @@ func TestTransaction(t *testing.T) {
 	// Verify Commit
 	readUser := &User{}
 	q := db.Query(readUser)
-	q.Where(orm.Eq("name", "Charlie"))
+	q.Where("name").Eq("Charlie")
 	if err := q.ReadOne(); err != nil {
 		t.Fatalf("ReadOne failed: %v", err)
 	}
@@ -628,7 +471,7 @@ func TestTransaction(t *testing.T) {
 	// Verify Rollback
 	readUser = &User{}
 	q = db.Query(readUser)
-	q.Where(orm.Eq("name", "Dave"))
+	q.Where("name").Eq("Dave")
 	if err := q.ReadOne(); err == nil {
 		// If ReadOne succeeds, it means it found a record (or potentially scan didn't fail, but we check name)
 		if readUser.Name != "" {

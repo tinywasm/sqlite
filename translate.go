@@ -1,9 +1,7 @@
 package sqlite
 
 import (
-	"errors"
-
-	tfmt "github.com/tinywasm/fmt"
+	. "github.com/tinywasm/fmt"
 
 	"github.com/tinywasm/orm"
 )
@@ -20,32 +18,32 @@ func translateQuery(q orm.Query) (string, []any, error) {
 	case orm.ActionDelete:
 		return buildDelete(q)
 	default:
-		return "", nil, errors.New(tfmt.Sprintf("unknown query action: %v", q.Action))
+		return "", nil, Errf("unknown query action: %v", q.Action)
 	}
 }
 
 func buildInsert(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, errors.New("table name is required for insert")
+		return "", nil, Err("table name is required for insert")
 	}
 	if len(q.Columns) == 0 {
-		return "", nil, errors.New("columns are required for insert")
+		return "", nil, Err("columns are required for insert")
 	}
 
-	cols := Join(q.Columns, ", ")
+	cols := Convert(q.Columns).Join(", ").String()
 	placeholders := make([]string, len(q.Columns))
 	for i := range placeholders {
 		placeholders[i] = "?"
 	}
-	vals := Join(placeholders, ", ")
+	vals := Convert(placeholders).Join(", ").String()
 
-	sql := tfmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", q.Table, cols, vals)
+	sql := Sprintf("INSERT INTO %s (%s) VALUES (%s)", q.Table, cols, vals)
 	return sql, q.Values, nil
 }
 
 func buildSelect(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, errors.New("table name is required for select")
+		return "", nil, Err("table name is required for select")
 	}
 
 	// Always select all columns for now, as we map to the model struct
@@ -55,9 +53,9 @@ func buildSelect(q orm.Query) (string, []any, error) {
 	var args []any
 
 	for i, c := range q.Conditions {
-		clause := tfmt.Sprintf("%s %s ?", c.Field(), c.Operator())
+		clause := Sprintf("%s %s ?", c.Field(), c.Operator())
 		if i > 0 {
-			clause = tfmt.Sprintf(" %s %s", c.Logic(), clause)
+			clause = Sprintf(" %s %s", c.Logic(), clause)
 		}
 		whereClauses = append(whereClauses, clause)
 		args = append(args, c.Value())
@@ -65,58 +63,58 @@ func buildSelect(q orm.Query) (string, []any, error) {
 
 	whereSQL := ""
 	if len(whereClauses) > 0 {
-		whereSQL = " WHERE " + Join(whereClauses, "")
+		whereSQL = " WHERE " + Convert(whereClauses).Join("").String()
 	}
 
 	groupBySQL := ""
 	if len(q.GroupBy) > 0 {
-		groupBySQL = " GROUP BY " + Join(q.GroupBy, ", ")
+		groupBySQL = " GROUP BY " + Convert(q.GroupBy).Join(", ").String()
 	}
 
 	orderBySQL := ""
 	if len(q.OrderBy) > 0 {
 		var orders []string
 		for _, o := range q.OrderBy {
-			orders = append(orders, tfmt.Sprintf("%s %s", o.Column(), o.Dir()))
+			orders = append(orders, Sprintf("%s %s", o.Column(), o.Dir()))
 		}
-		orderBySQL = " ORDER BY " + Join(orders, ", ")
+		orderBySQL = " ORDER BY " + Convert(orders).Join(", ").String()
 	}
 
 	limitSQL := ""
 	if q.Limit > 0 {
-		limitSQL = tfmt.Sprintf(" LIMIT %d", q.Limit)
+		limitSQL = Sprintf(" LIMIT %d", q.Limit)
 	}
 
 	offsetSQL := ""
 	if q.Offset > 0 {
-		offsetSQL = tfmt.Sprintf(" OFFSET %d", q.Offset)
+		offsetSQL = Sprintf(" OFFSET %d", q.Offset)
 	}
 
-	sql := tfmt.Sprintf("SELECT %s FROM %s%s%s%s%s%s", cols, q.Table, whereSQL, groupBySQL, orderBySQL, limitSQL, offsetSQL)
+	sql := Sprintf("SELECT %s FROM %s%s%s%s%s%s", cols, q.Table, whereSQL, groupBySQL, orderBySQL, limitSQL, offsetSQL)
 	return sql, args, nil
 }
 
 func buildUpdate(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, errors.New("table name is required for update")
+		return "", nil, Err("table name is required for update")
 	}
 	if len(q.Columns) == 0 {
-		return "", nil, errors.New("columns are required for update")
+		return "", nil, Err("columns are required for update")
 	}
 
 	var setClauses []string
 	var args []any
 
 	for i, col := range q.Columns {
-		setClauses = append(setClauses, tfmt.Sprintf("%s = ?", col))
+		setClauses = append(setClauses, Sprintf("%s = ?", col))
 		args = append(args, q.Values[i])
 	}
 
 	var whereClauses []string
 	for i, c := range q.Conditions {
-		clause := tfmt.Sprintf("%s %s ?", c.Field(), c.Operator())
+		clause := Sprintf("%s %s ?", c.Field(), c.Operator())
 		if i > 0 {
-			clause = tfmt.Sprintf(" %s %s", c.Logic(), clause)
+			clause = Sprintf(" %s %s", c.Logic(), clause)
 		}
 		whereClauses = append(whereClauses, clause)
 		args = append(args, c.Value())
@@ -124,25 +122,25 @@ func buildUpdate(q orm.Query) (string, []any, error) {
 
 	whereSQL := ""
 	if len(whereClauses) > 0 {
-		whereSQL = " WHERE " + Join(whereClauses, "")
+		whereSQL = " WHERE " + Convert(whereClauses).Join("").String()
 	}
 
-	sql := tfmt.Sprintf("UPDATE %s SET %s%s", q.Table, Join(setClauses, ", "), whereSQL)
+	sql := Sprintf("UPDATE %s SET %s%s", q.Table, Convert(setClauses).Join(", ").String(), whereSQL)
 	return sql, args, nil
 }
 
 func buildDelete(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, errors.New("table name is required for delete")
+		return "", nil, Err("table name is required for delete")
 	}
 
 	var whereClauses []string
 	var args []any
 
 	for i, c := range q.Conditions {
-		clause := tfmt.Sprintf("%s %s ?", c.Field(), c.Operator())
+		clause := Sprintf("%s %s ?", c.Field(), c.Operator())
 		if i > 0 {
-			clause = tfmt.Sprintf(" %s %s", c.Logic(), clause)
+			clause = Sprintf(" %s %s", c.Logic(), clause)
 		}
 		whereClauses = append(whereClauses, clause)
 		args = append(args, c.Value())
@@ -150,9 +148,9 @@ func buildDelete(q orm.Query) (string, []any, error) {
 
 	whereSQL := ""
 	if len(whereClauses) > 0 {
-		whereSQL = " WHERE " + Join(whereClauses, "")
+		whereSQL = " WHERE " + Convert(whereClauses).Join("").String()
 	}
 
-	sql := tfmt.Sprintf("DELETE FROM %s%s", q.Table, whereSQL)
+	sql := Sprintf("DELETE FROM %s%s", q.Table, whereSQL)
 	return sql, args, nil
 }
