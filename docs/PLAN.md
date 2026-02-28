@@ -1,23 +1,33 @@
-# SQLite Adapter - API Documentation Plan
-
-This master prompt outlines the specific steps to create an LLM-optimized API usage documentation for the `tinywasm/sqlite` adapter. 
+# Implementation Plan: Upgrade SQLite Adapter API
 
 ## Development Rules
-- **WASM / TinyGo Compatibility (`gotest` requirement):** You MUST replace all usages of standard `fmt` and `strings` with `github.com/tinywasm/fmt` in our codebase.
-- Constraints remain active: `gotest`, SRP, standard DI, pure stdlib testing, 500 lines limit, and flat hierarchy.
+- **WASM Environment (`tinywasm`):** Frontend Go Compatibility requires standard library replacements (`tinywasm/fmt`).
+- **Single Responsibility Principle (SRP):** Every file must have a single, well-defined purpose.
+- **Mandatory Dependency Injection (DI):** No global state. Interfaces for external dependencies.
+- **Testing Runner (`gotest`):** ALWAYS use the globally installed `gotest` CLI command. (If missing, run: `go install github.com/tinywasm/devflow/cmd/gotest@latest`).
+- **Standard Library Only in Tests:** NEVER use external assertion libraries.
+- **Documentation First:** Update docs before coding.
+
+## Goal
+Refactor the `tinywasm/sqlite` adapter so that its initialization function directly returns a fully instantiated `*orm.DB` instance from `github.com/tinywasm/orm`. This eliminates the need for the user to write two lines of code to boot the database. Furthermore, add complex queries (including JOINs) to the test suite, ensure coverage is >90%, and update all documentation.
 
 ## Execution Steps
 
-### 1. Create LLM-Optimized API Documentation (`docs/SKILL.md`)
-- **Goal**: Provide a highly condensed, minimum-token API reference so that any AI/LLM knows exactly how to instantiate and consume this `sqlite` adapter.
-- **Action**: Create a new file `docs/SKILL.md`. 
-- **Content Requirements**:
-  - Show the standard way to define a model (struct with `TableName`, `Columns`, `Values`, `Pointers` methods).
-  - Show exactly how to initialize the connection: `db, err := sqlite.New(":memory:")`. Note that this returns `*orm.DB` directly.
-  - Show a dense, minimal sequence of CRUD operations: `db.Create(m)`, `db.Query(m).Where(orm.Eq("col", val)).ReadOne()`, `db.Update(...)`, `db.Delete(...)`, and `db.Tx(func(tx *orm.DB) error { ... })`.
-  - Document how to properly close the connection `sqlite.Close(db)` and execute raw queries `sqlite.ExecSQL(db, "...")`.
-  - **Crucial**: Omit verbose human-oriented explanations. Use only explicit, heavily commented code blocks with strict signatures. The focus MUST be on saving context window tokens for LLMs.
+### 1. Update Public API
+- Modify the adapter initialization signature in `adapter.go` (e.g., `sqlite.Open`).
+- Internally instantiate the SQLite Executor and Compiler.
+- Pass them to `orm.New()` and return the resulting `*orm.DB`.
+- Ensure backwards compatibility is broken cleanly if necessary.
 
-### 2. Update the README index
-- **Goal**: Make the new documentation discoverable.
-- **Action**: Add a link to the newly created `SKILL.md` in `README.md` under a "Documentation" section.
+### 2. Complex Queries & JOINs Tests
+- Add comprehensive tests in `sqlite_test.go` or `test_files/` utilizing the `tinywasm/orm` Fluent API.
+- Create tests that explicitly execute complex `JOIN` queries to validate the SQL translation (`translate.go`).
+
+### 3. Coverage > 90%
+- Run `gotest`.
+- Identify uncovered lines in `execute.go`, `translate.go`, `tx.go`, and `adapter.go`.
+- Add mock or integration tests specifically targeting error paths and edge cases until the coverage is strictly greater than 90%.
+
+### 4. Update Documentation
+- **CRITICAL:** The `README.md` must be updated to show the new single-line `db := sqlite.Open(...)` initialization returning `*orm.DB`.
+- Update architecture or skill docs if the change affects the public contract.
