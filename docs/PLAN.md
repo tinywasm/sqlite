@@ -1,4 +1,4 @@
-# Implementation Plan: Eliminate Global State from Sqlite Adapter
+# Implementation Plan: Eliminate Global State from Sqlite Adapter.
 
 ## Development Rules
 - **WASM Environment (`tinywasm`):** Frontend Go Compatibility requires standard library replacements (`tinywasm/fmt`).
