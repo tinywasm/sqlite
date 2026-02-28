@@ -68,6 +68,11 @@ func buildSelect(q orm.Query) (string, []any, error) {
 		whereSQL = " WHERE " + Join(whereClauses, "")
 	}
 
+	groupBySQL := ""
+	if len(q.GroupBy) > 0 {
+		groupBySQL = " GROUP BY " + Join(q.GroupBy, ", ")
+	}
+
 	orderBySQL := ""
 	if len(q.OrderBy) > 0 {
 		var orders []string
@@ -87,7 +92,7 @@ func buildSelect(q orm.Query) (string, []any, error) {
 		offsetSQL = tfmt.Sprintf(" OFFSET %d", q.Offset)
 	}
 
-	sql := tfmt.Sprintf("SELECT %s FROM %s%s%s%s%s", cols, q.Table, whereSQL, orderBySQL, limitSQL, offsetSQL)
+	sql := tfmt.Sprintf("SELECT %s FROM %s%s%s%s%s%s", cols, q.Table, whereSQL, groupBySQL, orderBySQL, limitSQL, offsetSQL)
 	return sql, args, nil
 }
 

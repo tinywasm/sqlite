@@ -21,8 +21,8 @@ type SqliteAdapter struct {
 	db *sql.DB
 }
 
-// New creates a new SqliteAdapter and wraps it in an orm.DB.
-func New(dsn string) (*orm.DB, error) {
+// Open creates a new SqliteAdapter and wraps it in an orm.DB.
+func Open(dsn string) (*orm.DB, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, errors.New(tfmt.Sprintf("failed to open sqlite database: %v", err))
