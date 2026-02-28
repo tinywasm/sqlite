@@ -24,6 +24,10 @@ func (e *sqliteExecutor) Query(query string, args ...any) (orm.Rows, error) {
 	return e.db.Query(query, args...)
 }
 
+func (e *sqliteExecutor) Close() error {
+	return e.db.Close()
+}
+
 func (e *sqliteExecutor) BeginTx() (orm.TxBoundExecutor, error) {
 	tx, err := e.db.Begin()
 	if err != nil {
@@ -56,4 +60,8 @@ func (e *sqliteTxExecutor) Commit() error {
 
 func (e *sqliteTxExecutor) Rollback() error {
 	return e.tx.Rollback()
+}
+
+func (e *sqliteTxExecutor) Close() error {
+	return nil // sql.Tx doesn't have an explicit close outside of Commit/Rollback, but we must implement the interface
 }

@@ -255,19 +255,31 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 }
 
+type errorExecutor struct {
+	orm.Executor
+}
+
+func (e *errorExecutor) Close() error {
+	return fmt.Errorf("close error")
+}
+
+func (e *errorExecutor) Exec(query string, args ...any) error {
+	return fmt.Errorf("exec error")
+}
+
 func TestCloseError(t *testing.T) {
-	fakeDB := &orm.DB{} // Not registered
+	fakeDB := orm.New(&errorExecutor{}, nil)
 	err := sqlite.Close(fakeDB)
 	if err == nil {
-		t.Fatalf("expected error when closing unregistered db, got nil")
+		t.Fatalf("expected error when closing db, got nil")
 	}
 }
 
 func TestExecSQLError(t *testing.T) {
-	fakeDB := &orm.DB{} // Not registered
+	fakeDB := orm.New(&errorExecutor{}, nil)
 	err := sqlite.ExecSQL(fakeDB, "SELECT 1")
 	if err == nil {
-		t.Fatalf("expected error when execSQL on unregistered db, got nil")
+		t.Fatalf("expected error when execSQL fails, got nil")
 	}
 }
 

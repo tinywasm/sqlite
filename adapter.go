@@ -2,17 +2,11 @@ package sqlite
 
 import (
 	"database/sql"
-	"sync"
 
 	"github.com/tinywasm/orm"
 
 	. "github.com/tinywasm/fmt"
 	_ "modernc.org/sqlite" // SQLite driver
-)
-
-var (
-	dbRegistry = make(map[*orm.DB]*sql.DB)
-	dbMu       sync.RWMutex
 )
 
 // Open creates a new sqlite connection and wraps it in an orm.DB.
@@ -28,41 +22,21 @@ func Open(dsn string) (*orm.DB, error) {
 
 	exec := &sqliteExecutor{db: db}
 	compiler := sqliteCompiler{}
-	ormDB := orm.New(exec, compiler)
-
-	dbMu.Lock()
-	dbRegistry[ormDB] = db
-	dbMu.Unlock()
-
-	return ormDB, nil
+	return orm.New(exec, compiler), nil
 }
 
 // Close closes the database connection associated with the orm.DB.
 func Close(db *orm.DB) error {
-	dbMu.Lock()
-	sqlDB, ok := dbRegistry[db]
-	if ok {
-		delete(dbRegistry, db)
+	if db == nil || db.RawExecutor() == nil {
+		return Err("database instance or executor is nil")
 	}
-	dbMu.Unlock()
-
-	if !ok {
-		return Err("database instance not found in sqlite registry")
-	}
-
-	return sqlDB.Close()
+	return db.Close()
 }
 
 // ExecSQL executes raw SQL. Useful for testing or migrations.
 func ExecSQL(db *orm.DB, query string, args ...any) error {
-	dbMu.RLock()
-	sqlDB, ok := dbRegistry[db]
-	dbMu.RUnlock()
-
-	if !ok {
-		return Err("database instance not found in sqlite registry")
+	if db == nil || db.RawExecutor() == nil {
+		return Err("database instance or executor is nil")
 	}
-
-	_, err := sqlDB.Exec(query, args...)
-	return err
+	return db.RawExecutor().Exec(query, args...)
 }
