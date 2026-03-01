@@ -9,7 +9,7 @@ type sqliteCompiler struct{}
 
 // Compile converts an orm.Query into an engine Plan.
 func (c sqliteCompiler) Compile(q orm.Query, m orm.Model) (orm.Plan, error) {
-	sqlStr, args, err := translateQuery(q)
+	sqlStr, args, err := translateQuery(q, m)
 	if err != nil {
 		return orm.Plan{}, err
 	}
