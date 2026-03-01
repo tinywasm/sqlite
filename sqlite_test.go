@@ -24,13 +24,14 @@ func (o *Order) TableName() string {
 	return "orders"
 }
 
-func (o *Order) Columns() []string {
-	return []string{"user_id", "amount"}
+func (o *Order) Schema() []orm.Field {
+	return []orm.Field{
+		{Name: "id", Type: orm.TypeInt64, Constraints: orm.ConstraintPK | orm.ConstraintAutoIncrement},
+		{Name: "user_id", Type: orm.TypeInt64, Ref: "users", RefColumn: "id"},
+		{Name: "amount", Type: orm.TypeFloat64},
+	}
 }
 
-func (o *Order) Values() []any {
-	return []any{o.UserID, o.Amount}
-}
 
 func (o *Order) Pointers() []any {
 	return []any{&o.ID, &o.UserID, &o.Amount}
@@ -60,24 +61,24 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	}
 
 	// Insert test data
-	users := []User{
+	users := []*User{
 		{Name: "Alice", Age: 30},
 		{Name: "Bob", Age: 25},
 		{Name: "Charlie", Age: 30},
 	}
 	for _, u := range users {
-		if err := db.Create(&u); err != nil {
+		if err := db.Create(u); err != nil {
 			t.Fatalf("Create user failed: %v", err)
 		}
 	}
 
-	orders := []Order{
+	orders := []*Order{
 		{UserID: 1, Amount: 100.5},
 		{UserID: 1, Amount: 200.0},
 		{UserID: 2, Amount: 50.0},
 	}
 	for _, o := range orders {
-		if err := db.Create(&o); err != nil {
+		if err := db.Create(o); err != nil {
 			t.Fatalf("Create order failed: %v", err)
 		}
 	}
@@ -146,7 +147,12 @@ type UserTotalModel struct {
 }
 
 func (u *UserTotalModel) TableName() string { return "user_totals" }
-func (u *UserTotalModel) Columns() []string { return []string{"name", "total"} }
+func (u *UserTotalModel) Schema() []orm.Field {
+	return []orm.Field{
+		{Name: "name", Type: orm.TypeText},
+		{Name: "total", Type: orm.TypeFloat64},
+	}
+}
 func (u *UserTotalModel) Values() []any     { return []any{u.Name, u.Total} }
 func (u *UserTotalModel) Pointers() []any   { return []any{&u.Name, &u.Total} }
 
@@ -154,12 +160,26 @@ func (u *User) TableName() string {
 	return "users"
 }
 
-func (u *User) Columns() []string {
-	return []string{"name", "age"}
+func (u *User) Schema() []orm.Field {
+	return []orm.Field{
+		{Name: "id", Type: orm.TypeInt64, Constraints: orm.ConstraintPK | orm.ConstraintAutoIncrement},
+		{Name: "name", Type: orm.TypeText},
+		{Name: "age", Type: orm.TypeInt64},
+	}
+}
+
+func (o *Order) Values() []any {
+	if o.ID == 0 {
+		return []any{nil, o.UserID, o.Amount}
+	}
+	return []any{o.ID, o.UserID, o.Amount}
 }
 
 func (u *User) Values() []any {
-	return []any{u.Name, u.Age}
+	if u.ID == 0 {
+		return []any{nil, u.Name, u.Age}
+	}
+	return []any{u.ID, u.Name, u.Age}
 }
 
 func (u *User) Pointers() []any {
@@ -204,7 +224,9 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 
 	// Test Update
-	if err := db.Update(&User{Name: "Alice", Age: 31}, orm.Eq("name", "Alice")); err != nil {
+	// Note: We provide ID because otherwise User.Values() returns nil for ID,
+	// and SQLite strictly rejects updating INTEGER PRIMARY KEY to NULL.
+	if err := db.Update(&User{ID: readUser.ID, Name: "Alice", Age: 31}, orm.Eq("name", "Alice")); err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
 
@@ -251,12 +273,12 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 
 	// Test IN internal coverage format (slice of different types/missing)
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", 1)}})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", 1)}}, nil)
 	if err == nil {
 		t.Errorf("Expected compile error for non-slice IN value")
 	}
 
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", []any{})}})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", []any{})}}, nil)
 	if err == nil {
 		t.Errorf("Expected compile error for empty slice IN value")
 	}
@@ -313,7 +335,7 @@ type BadModel struct {
 }
 
 func (b *BadModel) TableName() string { return "" }
-func (b *BadModel) Columns() []string { return nil }
+func (b *BadModel) Schema() []orm.Field { return nil }
 func (b *BadModel) Values() []any     { return nil }
 func (b *BadModel) Pointers() []any   { return nil }
 
@@ -322,49 +344,131 @@ type NoColsModel struct {
 }
 
 func (n *NoColsModel) TableName() string { return "no_cols" }
-func (n *NoColsModel) Columns() []string { return nil }
+func (n *NoColsModel) Schema() []orm.Field { return nil }
 func (n *NoColsModel) Values() []any     { return nil }
 func (n *NoColsModel) Pointers() []any   { return nil }
 
+func TestCreateTable(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create db: %v", err)
+	}
+	defer sqlite.Close(db)
+
+	err = db.CreateTable(&User{})
+	if err != nil {
+		t.Fatalf("CreateTable User failed: %v", err)
+	}
+
+	// Verify table exists by inserting into it
+	user := &User{Name: "Alice", Age: 30}
+	if err := db.Create(user); err != nil {
+		t.Fatalf("Create User record failed after CreateTable: %v", err)
+	}
+}
+
+func TestDropTable(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create db: %v", err)
+	}
+	defer sqlite.Close(db)
+
+	err = db.CreateTable(&User{})
+	if err != nil {
+		t.Fatalf("CreateTable User failed: %v", err)
+	}
+
+	err = db.DropTable(&User{})
+	if err != nil {
+		t.Fatalf("DropTable User failed: %v", err)
+	}
+
+	// Verify table is gone by attempting to insert
+	user := &User{Name: "Alice", Age: 30}
+	err = db.Create(user)
+	if err == nil {
+		t.Fatalf("Expected error inserting into dropped table, got nil")
+	}
+}
+
+func TestCreateTableWithFK(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create db: %v", err)
+	}
+	defer sqlite.Close(db)
+
+	// First create referenced table
+	err = db.CreateTable(&User{})
+	if err != nil {
+		t.Fatalf("CreateTable User failed: %v", err)
+	}
+
+	// Then create table with FK
+	err = db.CreateTable(&Order{})
+	if err != nil {
+		t.Fatalf("CreateTable Order (with FK) failed: %v", err)
+	}
+}
+
 func TestCompilerErrors(t *testing.T) {
 	// Test internal translateQuery default switch case
-	_, _, err := sqlite.ExportTranslateQuery(orm.Query{Action: 99})
+	_, _, err := sqlite.ExportTranslateQuery(orm.Query{Action: 99}, nil)
 	if err == nil {
 		t.Fatalf("expected error for unsupported action in translate")
 	}
 
+	// Test create table without table
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreateTable}, &User{})
+	if err == nil {
+		t.Fatalf("expected error for create table without table")
+	}
+
+	// Test create table without model
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreateTable, Table: "t"}, nil)
+	if err == nil {
+		t.Fatalf("expected error for create table without model")
+	}
+
+	// Test drop table without table
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionDropTable}, nil)
+	if err == nil {
+		t.Fatalf("expected error for drop table without table")
+	}
+
 	// Test insert without table name
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Columns: []string{"id"}})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Columns: []string{"id"}}, nil)
 	if err == nil {
 		t.Fatalf("expected error for insert without table")
 	}
 
 	// Test insert without columns
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Table: "t"})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Table: "t"}, nil)
 	if err == nil {
 		t.Fatalf("expected error for insert without columns")
 	}
 
 	// Test select without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadOne})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadOne}, nil)
 	if err == nil {
 		t.Fatalf("expected error for select without table")
 	}
 
 	// Test update without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Columns: []string{"id"}})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Columns: []string{"id"}}, nil)
 	if err == nil {
 		t.Fatalf("expected error for update without table")
 	}
 
 	// Test update without columns
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Table: "t"})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Table: "t"}, nil)
 	if err == nil {
 		t.Fatalf("expected error for update without columns")
 	}
 
 	// Test delete without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionDelete})
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionDelete}, nil)
 	if err == nil {
 		t.Fatalf("expected error for delete without table")
 	}

@@ -7,8 +7,8 @@ import (
 )
 
 // ExportTranslateQuery exposes translation purely for testing unsupported action cases.
-func ExportTranslateQuery(q orm.Query) (string, []any, error) {
-	return translateQuery(q)
+func ExportTranslateQuery(q orm.Query, m orm.Model) (string, []any, error) {
+	return translateQuery(q, m)
 }
 
 // GetExecutor exposes the executor for direct execution testing.
