@@ -236,6 +236,31 @@ func TestSqliteAdapter(t *testing.T) {
 		t.Errorf("expected 2 users, got %d", len(users))
 	}
 
+	// Test IN operator
+	var inUsers []*User
+	qIn := db.Query(&User{})
+	qIn.Where("name").In([]any{"Alice", "Bob"})
+	err = qIn.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
+		inUsers = append(inUsers, m.(*User))
+	})
+	if err != nil {
+		t.Fatalf("IN ReadAll failed: %v", err)
+	}
+	if len(inUsers) != 2 {
+		t.Errorf("expected 2 users from IN, got %d", len(inUsers))
+	}
+
+	// Test IN internal coverage format (slice of different types/missing)
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", 1)}})
+	if err == nil {
+		t.Errorf("Expected compile error for non-slice IN value")
+	}
+
+	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", []any{})}})
+	if err == nil {
+		t.Errorf("Expected compile error for empty slice IN value")
+	}
+
 	// Test Delete
 	if err := db.Delete(&User{}, orm.Eq("name", "Bob")); err != nil {
 		t.Fatalf("Delete failed: %v", err)
@@ -255,19 +280,31 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 }
 
+type errorExecutor struct {
+	orm.Executor
+}
+
+func (e *errorExecutor) Close() error {
+	return fmt.Errorf("close error")
+}
+
+func (e *errorExecutor) Exec(query string, args ...any) error {
+	return fmt.Errorf("exec error")
+}
+
 func TestCloseError(t *testing.T) {
-	fakeDB := &orm.DB{} // Not registered
+	fakeDB := orm.New(&errorExecutor{}, nil)
 	err := sqlite.Close(fakeDB)
 	if err == nil {
-		t.Fatalf("expected error when closing unregistered db, got nil")
+		t.Fatalf("expected error when closing db, got nil")
 	}
 }
 
 func TestExecSQLError(t *testing.T) {
-	fakeDB := &orm.DB{} // Not registered
+	fakeDB := orm.New(&errorExecutor{}, nil)
 	err := sqlite.ExecSQL(fakeDB, "SELECT 1")
 	if err == nil {
-		t.Fatalf("expected error when execSQL on unregistered db, got nil")
+		t.Fatalf("expected error when execSQL fails, got nil")
 	}
 }
 
