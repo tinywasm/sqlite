@@ -45,25 +45,11 @@ func buildSelect(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
 		return "", nil, Err("table name is required for select")
 	}
-
-	// Always select all columns for now, as we map to the model struct
 	cols := "*"
 
-	var whereClauses []string
-	var args []any
-
-	for i, c := range q.Conditions {
-		clause := Sprintf("%s %s ?", c.Field(), c.Operator())
-		if i > 0 {
-			clause = Sprintf(" %s %s", c.Logic(), clause)
-		}
-		whereClauses = append(whereClauses, clause)
-		args = append(args, c.Value())
-	}
-
-	whereSQL := ""
-	if len(whereClauses) > 0 {
-		whereSQL = " WHERE " + Convert(whereClauses).Join("").String()
+	whereSQL, args, err := buildConditions(q.Conditions)
+	if err != nil {
+		return "", nil, err
 	}
 
 	groupBySQL := ""
@@ -110,20 +96,11 @@ func buildUpdate(q orm.Query) (string, []any, error) {
 		args = append(args, q.Values[i])
 	}
 
-	var whereClauses []string
-	for i, c := range q.Conditions {
-		clause := Sprintf("%s %s ?", c.Field(), c.Operator())
-		if i > 0 {
-			clause = Sprintf(" %s %s", c.Logic(), clause)
-		}
-		whereClauses = append(whereClauses, clause)
-		args = append(args, c.Value())
+	whereSQL, condArgs, err := buildConditions(q.Conditions)
+	if err != nil {
+		return "", nil, err
 	}
-
-	whereSQL := ""
-	if len(whereClauses) > 0 {
-		whereSQL = " WHERE " + Convert(whereClauses).Join("").String()
-	}
+	args = append(args, condArgs...)
 
 	sql := Sprintf("UPDATE %s SET %s%s", q.Table, Convert(setClauses).Join(", ").String(), whereSQL)
 	return sql, args, nil
@@ -134,23 +111,50 @@ func buildDelete(q orm.Query) (string, []any, error) {
 		return "", nil, Err("table name is required for delete")
 	}
 
-	var whereClauses []string
-	var args []any
-
-	for i, c := range q.Conditions {
-		clause := Sprintf("%s %s ?", c.Field(), c.Operator())
-		if i > 0 {
-			clause = Sprintf(" %s %s", c.Logic(), clause)
-		}
-		whereClauses = append(whereClauses, clause)
-		args = append(args, c.Value())
-	}
-
-	whereSQL := ""
-	if len(whereClauses) > 0 {
-		whereSQL = " WHERE " + Convert(whereClauses).Join("").String()
+	whereSQL, args, err := buildConditions(q.Conditions)
+	if err != nil {
+		return "", nil, err
 	}
 
 	sql := Sprintf("DELETE FROM %s%s", q.Table, whereSQL)
 	return sql, args, nil
+}
+
+func buildConditions(conditions []orm.Condition) (string, []any, error) {
+	if len(conditions) == 0 {
+		return "", nil, nil
+	}
+
+	var whereClauses []string
+	var args []any
+
+	for i, c := range conditions {
+		var clause string
+		if c.Operator() == "IN" {
+			slice, ok := c.Value().([]any)
+			if !ok {
+				return "", nil, Errf("IN operator requires []any value, got %T", c.Value())
+			}
+			if len(slice) == 0 {
+				return "", nil, Err("IN operator slice cannot be empty")
+			}
+			placeholders := make([]string, len(slice))
+			for j := range placeholders {
+				placeholders[j] = "?"
+			}
+			inVals := Convert(placeholders).Join(", ").String()
+			clause = Sprintf("%s IN (%s)", c.Field(), inVals)
+			args = append(args, slice...)
+		} else {
+			clause = Sprintf("%s %s ?", c.Field(), c.Operator())
+			args = append(args, c.Value())
+		}
+
+		if i > 0 {
+			clause = Sprintf(" %s %s", c.Logic(), clause)
+		}
+		whereClauses = append(whereClauses, clause)
+	}
+
+	return " WHERE " + Convert(whereClauses).Join("").String(), args, nil
 }
