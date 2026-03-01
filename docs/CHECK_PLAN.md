@@ -1,4 +1,4 @@
-# Implementation Plan: SQLite Adapter — ORM v0.0.13 DDL Support
+# Implementation Plan: SQLite Adapter — ORM v0.1.1 DDL Support
 
 ## Development Rules
 - **Single Responsibility Principle (SRP):** Every file must have a single, well-defined purpose.
@@ -8,7 +8,7 @@
 - **Explicit Execution:** Do not modify source code unless all steps below are followed in order.
 
 ## Goal
-Update `tinywasm/sqlite` to support `tinywasm/orm@v0.0.13`. Breaking changes:
+Update `tinywasm/sqlite` to support `tinywasm/orm@v0.1.1`. Changes from v0.1.0→v0.1.1 are test/docs only (no API breaks). Main breaking changes vs previous versions:
 - `Model.Columns() []string` is replaced by `Model.Schema() []orm.Field`
 - New DDL actions: `ActionCreateTable`, `ActionDropTable` must be handled in `translate.go`
 - All test models must implement the new `Schema()` interface
@@ -22,9 +22,10 @@ Update `tinywasm/sqlite` to support `tinywasm/orm@v0.0.13`. Breaking changes:
 
 ### Step 1 — Update dependency
 ```bash
-go get github.com/tinywasm/orm@v0.1.0
+go get github.com/tinywasm/orm@v0.1.1
 go mod tidy
 ```
+> **Note:** If v0.1.1 is not yet available in the Go proxy, run `go get github.com/tinywasm/orm@v0.1.0` as a fallback. The API is identical.
 
 ### Step 2 — Update `translate.go`
 In `buildSelect`, `buildUpdate`, `buildDelete` and `buildConditions`:
@@ -96,5 +97,5 @@ Coverage must be ≥ 90%.
 
 ### Step 5 — Publish
 ```bash
-gopush 'feat: support orm v0.0.13 DDL Schema API'
+gopush 'feat: support orm v0.1.1 DDL Schema API'
 ```
