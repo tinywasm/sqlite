@@ -44,7 +44,8 @@ func buildCreateTable(q orm.Query, m orm.Model) (string, []any, error) {
 		if f.Constraints&orm.ConstraintPK != 0 {
 			col += " PRIMARY KEY"
 		}
-		if f.Constraints&orm.ConstraintAutoIncrement != 0 {
+		// AUTOINCREMENT is only allowed on INTEGER PRIMARY KEY in SQLite
+		if f.Constraints&orm.ConstraintAutoIncrement != 0 && f.Type == orm.TypeInt64 {
 			col += " AUTOINCREMENT"
 		}
 		if f.Constraints&orm.ConstraintNotNull != 0 {
