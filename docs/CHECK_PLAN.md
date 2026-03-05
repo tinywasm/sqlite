@@ -145,7 +145,7 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 
 ## Acceptance Criteria
 
-- [ ] `README.md` updated — no zero-condition Update example
-- [ ] `TestUpdate_ExplicitPK_MultiRow` added and passes
-- [ ] All existing tests still pass (`gotest`)
-- [ ] `gopush 'docs+test: document Update condition contract and add multi-row regression test'`
+- [x] `README.md` updated — no zero-condition Update example
+- [x] `TestUpdate_ExplicitPK_MultiRow` added and passes
+- [x] All existing tests still pass (`gotest`)
+- [x] `gopush 'docs+test: document Update condition contract and add multi-row regression test'`
