@@ -620,3 +620,79 @@ func TestTransaction(t *testing.T) {
 		}
 	}
 }
+
+// TestUpdate_ExplicitPK_MultiRow is a regression test for the bug where
+// db.Update(&model) without conditions caused full-table updates, triggering
+// UNIQUE constraint failures in loops.
+//
+// The fix is in tinywasm/orm (mandatory first Condition). This test verifies
+// the integration behaviour: N rows updated in sequence via explicit PK condition,
+// each targeting exactly one row.
+func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer sqlite.Close(db)
+
+	if err := db.CreateTable(&User{}); err != nil {
+		t.Fatalf("CreateTable: %v", err)
+	}
+
+	// Insert three users.
+	seeds := []User{
+		{Name: "Alice", Age: 30},
+		{Name: "Bob", Age: 25},
+		{Name: "Charlie", Age: 20},
+	}
+	for i := range seeds {
+		if err := db.Create(&seeds[i]); err != nil {
+			t.Fatalf("Create %s: %v", seeds[i].Name, err)
+		}
+	}
+
+	// Read them back to obtain DB-assigned IDs.
+	var users []*User
+	q := db.Query(&User{})
+	err = q.ReadAll(
+		func() orm.Model { return &User{} },
+		func(m orm.Model) { users = append(users, m.(*User)) },
+	)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(users) != 3 {
+		t.Fatalf("expected 3 users, got %d", len(users))
+	}
+
+	// Update each user's age in a loop using an explicit PK condition.
+	// This is the pattern that previously triggered UNIQUE constraint failures.
+	err = db.Tx(func(tx *orm.DB) error {
+		for _, u := range users {
+			u.Age += 10
+			// Explicit condition required by tinywasm/orm (compile-time enforced).
+			if err := tx.Update(u, orm.Eq("id", u.ID)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		// Regression: previously failed with "UNIQUE constraint failed: users.id"
+		t.Fatalf("Tx multi-row Update: %v", err)
+	}
+
+	// Verify each row was updated independently.
+	wantAges := map[int]int{users[0].ID: 40, users[1].ID: 35, users[2].ID: 30}
+	for _, u := range users {
+		got := &User{}
+		q := db.Query(got)
+		q.Where("id").Eq(u.ID)
+		if err := q.ReadOne(); err != nil {
+			t.Fatalf("ReadOne user %d: %v", u.ID, err)
+		}
+		if got.Age != wantAges[u.ID] {
+			t.Errorf("user %d: expected age %d, got %d", u.ID, wantAges[u.ID], got.Age)
+		}
+	}
+}
