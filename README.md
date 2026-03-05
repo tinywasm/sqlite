@@ -30,3 +30,16 @@ func main() {
 	// ...
 }
 ```
+
+## Update
+
+`db.Update` always requires at least one `Condition`. This is enforced at
+compile time by `tinywasm/orm`. There is no "update by PK implicitly" magic.
+
+```go
+// ✅ Correct
+if err := db.Update(&user, orm.Eq("id", user.ID)); err != nil { ... }
+
+// ❌ Compile error (caught by tinywasm/orm — will not reach the SQLite layer)
+db.Update(&user)
+```
