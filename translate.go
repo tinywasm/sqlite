@@ -38,15 +38,30 @@ func buildCreateTable(q orm.Query, m orm.Model) (string, []any, error) {
 	sb = append(sb, Sprintf("CREATE TABLE IF NOT EXISTS %s (", q.Table))
 
 	fields := m.Schema()
+
+	// Count composite PK fields upfront to decide between inline and table-level PK.
+	var pkCols []string
+	for _, f := range fields {
+		if f.Constraints&orm.ConstraintPK != 0 {
+			pkCols = append(pkCols, f.Name)
+		}
+	}
+	compositePK := len(pkCols) > 1
+
 	var cols []string
 	for _, f := range fields {
 		col := Sprintf("%s %s", f.Name, sqliteType(f.Type))
 		if f.Constraints&orm.ConstraintPK != 0 {
-			col += " PRIMARY KEY"
-		}
-		// AUTOINCREMENT is only allowed on INTEGER PRIMARY KEY in SQLite
-		if f.Constraints&orm.ConstraintAutoIncrement != 0 && f.Type == orm.TypeInt64 {
-			col += " AUTOINCREMENT"
+			if compositePK {
+				// Composite PK: columns must be NOT NULL; constraint emitted as table-level below.
+				col += " NOT NULL"
+			} else {
+				col += " PRIMARY KEY"
+				// AUTOINCREMENT is only allowed on INTEGER PRIMARY KEY in SQLite
+				if f.Constraints&orm.ConstraintAutoIncrement != 0 && f.Type == orm.TypeInt64 {
+					col += " AUTOINCREMENT"
+				}
+			}
 		}
 		if f.Constraints&orm.ConstraintNotNull != 0 {
 			col += " NOT NULL"
@@ -55,6 +70,10 @@ func buildCreateTable(q orm.Query, m orm.Model) (string, []any, error) {
 			col += " UNIQUE"
 		}
 		cols = append(cols, col)
+	}
+
+	if compositePK {
+		cols = append(cols, Sprintf("PRIMARY KEY (%s)", Convert(pkCols).Join(", ").String()))
 	}
 
 	for _, f := range fields {

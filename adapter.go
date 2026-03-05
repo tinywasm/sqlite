@@ -20,6 +20,13 @@ func Open(dsn string) (*orm.DB, error) {
 		return nil, Errf("failed to ping sqlite database: %v", err)
 	}
 
+	// SQLite does not support concurrent writers. In-memory databases (:memory:)
+	// are per-connection — each new connection sees an empty database. Limiting
+	// to a single connection prevents both "database is locked" and
+	// "no such table" errors when multiple goroutines share the same orm.DB.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
 	exec := &sqliteExecutor{db: db}
 	compiler := sqliteCompiler{}
 	return orm.New(exec, compiler), nil
