@@ -42,7 +42,7 @@ func buildCreateTable(q orm.Query, m orm.Model) (string, []any, error) {
 	// Count composite PK fields upfront to decide between inline and table-level PK.
 	var pkCols []string
 	for _, f := range fields {
-		if f.Constraints&orm.ConstraintPK != 0 {
+		if f.PK {
 			pkCols = append(pkCols, f.Name)
 		}
 	}
@@ -51,22 +51,22 @@ func buildCreateTable(q orm.Query, m orm.Model) (string, []any, error) {
 	var cols []string
 	for _, f := range fields {
 		col := Sprintf("%s %s", f.Name, sqliteType(f.Type))
-		if f.Constraints&orm.ConstraintPK != 0 {
+		if f.PK {
 			if compositePK {
 				// Composite PK: columns must be NOT NULL; constraint emitted as table-level below.
 				col += " NOT NULL"
 			} else {
 				col += " PRIMARY KEY"
 				// AUTOINCREMENT is only allowed on INTEGER PRIMARY KEY in SQLite
-				if f.Constraints&orm.ConstraintAutoIncrement != 0 && f.Type == orm.TypeInt64 {
+				if f.AutoInc && f.Type == FieldInt {
 					col += " AUTOINCREMENT"
 				}
 			}
 		}
-		if f.Constraints&orm.ConstraintNotNull != 0 {
+		if f.NotNull {
 			col += " NOT NULL"
 		}
-		if f.Constraints&orm.ConstraintUnique != 0 {
+		if f.Unique {
 			col += " UNIQUE"
 		}
 		cols = append(cols, col)
@@ -76,13 +76,15 @@ func buildCreateTable(q orm.Query, m orm.Model) (string, []any, error) {
 		cols = append(cols, Sprintf("PRIMARY KEY (%s)", Convert(pkCols).Join(", ").String()))
 	}
 
-	for _, f := range fields {
-		if f.Ref != "" {
-			refCol := f.RefColumn
-			if refCol == "" {
-				refCol = "id"
+	if ext, ok := m.(interface{ SchemaExt() []orm.FieldExt }); ok {
+		for _, f := range ext.SchemaExt() {
+			if f.Ref != "" {
+				refCol := f.RefColumn
+				if refCol == "" {
+					refCol = "id"
+				}
+				cols = append(cols, Sprintf("CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)", q.Table, f.Name, f.Name, f.Ref, refCol))
 			}
-			cols = append(cols, Sprintf("CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)", q.Table, f.Name, f.Name, f.Ref, refCol))
 		}
 	}
 
@@ -99,15 +101,15 @@ func buildDropTable(q orm.Query) (string, []any, error) {
 	return Sprintf("DROP TABLE IF EXISTS %s", q.Table), nil, nil
 }
 
-func sqliteType(t orm.FieldType) string {
+func sqliteType(t FieldType) string {
 	switch t {
-	case orm.TypeInt64:
+	case FieldInt:
 		return "INTEGER"
-	case orm.TypeFloat64:
+	case FieldFloat:
 		return "REAL"
-	case orm.TypeBool:
+	case FieldBool:
 		return "INTEGER" // 0 or 1
-	case orm.TypeBlob:
+	case FieldBlob:
 		return "BLOB"
 	default:
 		return "TEXT"

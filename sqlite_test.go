@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	twfmt "github.com/tinywasm/fmt"
 	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
 )
@@ -24,14 +25,19 @@ func (o *Order) TableName() string {
 	return "orders"
 }
 
-func (o *Order) Schema() []orm.Field {
-	return []orm.Field{
-		{Name: "id", Type: orm.TypeInt64, Constraints: orm.ConstraintPK | orm.ConstraintAutoIncrement},
-		{Name: "user_id", Type: orm.TypeInt64, Ref: "users", RefColumn: "id"},
-		{Name: "amount", Type: orm.TypeFloat64},
+func (o *Order) Schema() []twfmt.Field {
+	return []twfmt.Field{
+		{Name: "id", Type: twfmt.FieldInt, PK: true, AutoInc: true},
+		{Name: "user_id", Type: twfmt.FieldInt},
+		{Name: "amount", Type: twfmt.FieldFloat},
 	}
 }
 
+func (o *Order) SchemaExt() []orm.FieldExt {
+	return []orm.FieldExt{
+		{Field: twfmt.Field{Name: "user_id", Type: twfmt.FieldInt}, Ref: "users", RefColumn: "id"},
+	}
+}
 
 func (o *Order) Pointers() []any {
 	return []any{&o.ID, &o.UserID, &o.Amount}
@@ -84,8 +90,6 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	}
 
 	// Test Fluent API: GroupBy, OrderBy, Limit, Offset
-	// We want to query users grouped by age and ordered by age DESC, limit 1 offset 0
-	// Wait, the test uses the fluent API.
 	var results []*User
 	q := db.Query(&User{})
 	q.GroupBy("age").OrderBy("age").Desc().Limit(1).Offset(0)
@@ -103,7 +107,6 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	}
 
 	// Test JOIN query via raw SQL
-	// Get total order amounts per user name
 	type UserOrder struct {
 		Name  string
 		Total float64
@@ -147,39 +150,24 @@ type UserTotalModel struct {
 }
 
 func (u *UserTotalModel) TableName() string { return "user_totals" }
-func (u *UserTotalModel) Schema() []orm.Field {
-	return []orm.Field{
-		{Name: "name", Type: orm.TypeText},
-		{Name: "total", Type: orm.TypeFloat64},
+func (u *UserTotalModel) Schema() []twfmt.Field {
+	return []twfmt.Field{
+		{Name: "name", Type: twfmt.FieldText},
+		{Name: "total", Type: twfmt.FieldFloat},
 	}
 }
-func (u *UserTotalModel) Values() []any     { return []any{u.Name, u.Total} }
-func (u *UserTotalModel) Pointers() []any   { return []any{&u.Name, &u.Total} }
+func (u *UserTotalModel) Pointers() []any { return []any{&u.Name, &u.Total} }
 
 func (u *User) TableName() string {
 	return "users"
 }
 
-func (u *User) Schema() []orm.Field {
-	return []orm.Field{
-		{Name: "id", Type: orm.TypeInt64, Constraints: orm.ConstraintPK | orm.ConstraintAutoIncrement},
-		{Name: "name", Type: orm.TypeText},
-		{Name: "age", Type: orm.TypeInt64},
+func (u *User) Schema() []twfmt.Field {
+	return []twfmt.Field{
+		{Name: "id", Type: twfmt.FieldInt, PK: true, AutoInc: true},
+		{Name: "name", Type: twfmt.FieldText},
+		{Name: "age", Type: twfmt.FieldInt},
 	}
-}
-
-func (o *Order) Values() []any {
-	if o.ID == 0 {
-		return []any{nil, o.UserID, o.Amount}
-	}
-	return []any{o.ID, o.UserID, o.Amount}
-}
-
-func (u *User) Values() []any {
-	if u.ID == 0 {
-		return []any{nil, u.Name, u.Age}
-	}
-	return []any{u.ID, u.Name, u.Age}
 }
 
 func (u *User) Pointers() []any {
@@ -224,8 +212,6 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 
 	// Test Update
-	// Note: We provide ID because otherwise User.Values() returns nil for ID,
-	// and SQLite strictly rejects updating INTEGER PRIMARY KEY to NULL.
 	if err := db.Update(&User{ID: readUser.ID, Name: "Alice", Age: 31}, orm.Eq("name", "Alice")); err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
@@ -334,19 +320,17 @@ type BadModel struct {
 	Name string
 }
 
-func (b *BadModel) TableName() string { return "" }
-func (b *BadModel) Schema() []orm.Field { return nil }
-func (b *BadModel) Values() []any     { return nil }
-func (b *BadModel) Pointers() []any   { return nil }
+func (b *BadModel) TableName() string      { return "" }
+func (b *BadModel) Schema() []twfmt.Field  { return nil }
+func (b *BadModel) Pointers() []any        { return nil }
 
 type NoColsModel struct {
 	Name string
 }
 
-func (n *NoColsModel) TableName() string { return "no_cols" }
-func (n *NoColsModel) Schema() []orm.Field { return nil }
-func (n *NoColsModel) Values() []any     { return nil }
-func (n *NoColsModel) Pointers() []any   { return nil }
+func (n *NoColsModel) TableName() string      { return "no_cols" }
+func (n *NoColsModel) Schema() []twfmt.Field  { return nil }
+func (n *NoColsModel) Pointers() []any        { return nil }
 
 func TestCreateTable(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
@@ -614,20 +598,12 @@ func TestTransaction(t *testing.T) {
 	q = db.Query(readUser)
 	q.Where("name").Eq("Dave")
 	if err := q.ReadOne(); err == nil {
-		// If ReadOne succeeds, it means it found a record (or potentially scan didn't fail, but we check name)
 		if readUser.Name != "" {
 			t.Errorf("ReadOne should have failed (not found) or returned empty, but got name: %s", readUser.Name)
 		}
 	}
 }
 
-// TestUpdate_ExplicitPK_MultiRow is a regression test for the bug where
-// db.Update(&model) without conditions caused full-table updates, triggering
-// UNIQUE constraint failures in loops.
-//
-// The fix is in tinywasm/orm (mandatory first Condition). This test verifies
-// the integration behaviour: N rows updated in sequence via explicit PK condition,
-// each targeting exactly one row.
 func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
@@ -666,11 +642,9 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 	}
 
 	// Update each user's age in a loop using an explicit PK condition.
-	// This is the pattern that previously triggered UNIQUE constraint failures.
 	err = db.Tx(func(tx *orm.DB) error {
 		for _, u := range users {
 			u.Age += 10
-			// Explicit condition required by tinywasm/orm (compile-time enforced).
 			if err := tx.Update(u, orm.Eq("id", u.ID)); err != nil {
 				return err
 			}
@@ -678,7 +652,6 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		// Regression: previously failed with "UNIQUE constraint failed: users.id"
 		t.Fatalf("Tx multi-row Update: %v", err)
 	}
 
