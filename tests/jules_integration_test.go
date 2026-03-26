@@ -13,7 +13,7 @@ type SimpleUser struct {
 	Email string
 }
 
-func (s *SimpleUser) TableName() string { return "simple_users" }
+func (s *SimpleUser) ModelName() string { return "simple_users" }
 func (s *SimpleUser) Schema() []twfmt.Field {
 	return []twfmt.Field{
 		{Name: "id", Type: twfmt.FieldText, PK: true},
@@ -27,7 +27,7 @@ type SimpleSession struct {
 	UserID string
 }
 
-func (s *SimpleSession) TableName() string { return "simple_sessions" }
+func (s *SimpleSession) ModelName() string { return "simple_sessions" }
 func (s *SimpleSession) Schema() []twfmt.Field {
 	return []twfmt.Field{
 		{Name: "id", Type: twfmt.FieldText, PK: true},

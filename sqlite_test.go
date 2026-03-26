@@ -21,7 +21,7 @@ type Order struct {
 	Amount float64
 }
 
-func (o *Order) TableName() string {
+func (o *Order) ModelName() string {
 	return "orders"
 }
 
@@ -93,7 +93,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	var results []*User
 	q := db.Query(&User{})
 	q.GroupBy("age").OrderBy("age").Desc().Limit(1).Offset(0)
-	err = q.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
+	err = q.ReadAll(func() twfmt.Model { return &User{} }, func(m twfmt.Model) {
 		results = append(results, m.(*User))
 	})
 	if err != nil {
@@ -125,7 +125,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	var totals []UserTotalModel
 	qtotals := db.Query(&UserTotalModel{})
 	qtotals.OrderBy("total").Desc()
-	err = qtotals.ReadAll(func() orm.Model { return &UserTotalModel{} }, func(m orm.Model) {
+	err = qtotals.ReadAll(func() twfmt.Model { return &UserTotalModel{} }, func(m twfmt.Model) {
 		totals = append(totals, *m.(*UserTotalModel))
 	})
 	if err != nil {
@@ -149,7 +149,7 @@ type UserTotalModel struct {
 	Total float64
 }
 
-func (u *UserTotalModel) TableName() string { return "user_totals" }
+func (u *UserTotalModel) ModelName() string { return "user_totals" }
 func (u *UserTotalModel) Schema() []twfmt.Field {
 	return []twfmt.Field{
 		{Name: "name", Type: twfmt.FieldText},
@@ -158,7 +158,7 @@ func (u *UserTotalModel) Schema() []twfmt.Field {
 }
 func (u *UserTotalModel) Pointers() []any { return []any{&u.Name, &u.Total} }
 
-func (u *User) TableName() string {
+func (u *User) ModelName() string {
 	return "users"
 }
 
@@ -231,10 +231,10 @@ func TestSqliteAdapter(t *testing.T) {
 	db.Create(&User{Name: "Bob", Age: 25})
 	var users []*User
 	q = db.Query(&User{})
-	err = q.ReadAll(func() orm.Model {
+	err = q.ReadAll(func() twfmt.Model {
 		u := &User{}
 		return u
-	}, func(m orm.Model) {
+	}, func(m twfmt.Model) {
 		users = append(users, m.(*User))
 	})
 	if err != nil {
@@ -248,7 +248,7 @@ func TestSqliteAdapter(t *testing.T) {
 	var inUsers []*User
 	qIn := db.Query(&User{})
 	qIn.Where("name").In([]any{"Alice", "Bob"})
-	err = qIn.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
+	err = qIn.ReadAll(func() twfmt.Model { return &User{} }, func(m twfmt.Model) {
 		inUsers = append(inUsers, m.(*User))
 	})
 	if err != nil {
@@ -277,7 +277,7 @@ func TestSqliteAdapter(t *testing.T) {
 	// Verify Delete
 	users = nil
 	q = db.Query(&User{})
-	err = q.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
+	err = q.ReadAll(func() twfmt.Model { return &User{} }, func(m twfmt.Model) {
 		users = append(users, m.(*User))
 	})
 	if err != nil {
@@ -320,7 +320,7 @@ type BadModel struct {
 	Name string
 }
 
-func (b *BadModel) TableName() string      { return "" }
+func (b *BadModel) ModelName() string      { return "" }
 func (b *BadModel) Schema() []twfmt.Field  { return nil }
 func (b *BadModel) Pointers() []any        { return nil }
 
@@ -328,7 +328,7 @@ type NoColsModel struct {
 	Name string
 }
 
-func (n *NoColsModel) TableName() string      { return "no_cols" }
+func (n *NoColsModel) ModelName() string      { return "no_cols" }
 func (n *NoColsModel) Schema() []twfmt.Field  { return nil }
 func (n *NoColsModel) Pointers() []any        { return nil }
 
@@ -631,8 +631,8 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 	var users []*User
 	q := db.Query(&User{})
 	err = q.ReadAll(
-		func() orm.Model { return &User{} },
-		func(m orm.Model) { users = append(users, m.(*User)) },
+		func() twfmt.Model { return &User{} },
+		func(m twfmt.Model) { users = append(users, m.(*User)) },
 	)
 	if err != nil {
 		t.Fatalf("ReadAll: %v", err)
