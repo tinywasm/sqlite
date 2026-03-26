@@ -1,10 +1,9 @@
 package sqlite_test
 
 import (
-	"fmt"
 	"testing"
 
-	twfmt "github.com/tinywasm/fmt"
+	"github.com/tinywasm/fmt"
 	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
 )
@@ -21,21 +20,21 @@ type Order struct {
 	Amount float64
 }
 
-func (o *Order) TableName() string {
+func (o *Order) ModelName() string {
 	return "orders"
 }
 
-func (o *Order) Schema() []twfmt.Field {
-	return []twfmt.Field{
-		{Name: "id", Type: twfmt.FieldInt, PK: true, AutoInc: true},
-		{Name: "user_id", Type: twfmt.FieldInt},
-		{Name: "amount", Type: twfmt.FieldFloat},
+func (o *Order) Schema() []fmt.Field {
+	return []fmt.Field{
+		{Name: "id", Type: fmt.FieldInt, PK: true, AutoInc: true},
+		{Name: "user_id", Type: fmt.FieldInt},
+		{Name: "amount", Type: fmt.FieldFloat},
 	}
 }
 
 func (o *Order) SchemaExt() []orm.FieldExt {
 	return []orm.FieldExt{
-		{Field: twfmt.Field{Name: "user_id", Type: twfmt.FieldInt}, Ref: "users", RefColumn: "id"},
+		{Field: fmt.Field{Name: "user_id", Type: fmt.FieldInt}, Ref: "users", RefColumn: "id"},
 	}
 }
 
@@ -93,7 +92,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	var results []*User
 	q := db.Query(&User{})
 	q.GroupBy("age").OrderBy("age").Desc().Limit(1).Offset(0)
-	err = q.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
+	err = q.ReadAll(func() fmt.Model { return &User{} }, func(m fmt.Model) {
 		results = append(results, m.(*User))
 	})
 	if err != nil {
@@ -125,7 +124,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	var totals []UserTotalModel
 	qtotals := db.Query(&UserTotalModel{})
 	qtotals.OrderBy("total").Desc()
-	err = qtotals.ReadAll(func() orm.Model { return &UserTotalModel{} }, func(m orm.Model) {
+	err = qtotals.ReadAll(func() fmt.Model { return &UserTotalModel{} }, func(m fmt.Model) {
 		totals = append(totals, *m.(*UserTotalModel))
 	})
 	if err != nil {
@@ -149,24 +148,24 @@ type UserTotalModel struct {
 	Total float64
 }
 
-func (u *UserTotalModel) TableName() string { return "user_totals" }
-func (u *UserTotalModel) Schema() []twfmt.Field {
-	return []twfmt.Field{
-		{Name: "name", Type: twfmt.FieldText},
-		{Name: "total", Type: twfmt.FieldFloat},
+func (u *UserTotalModel) ModelName() string { return "user_totals" }
+func (u *UserTotalModel) Schema() []fmt.Field {
+	return []fmt.Field{
+		{Name: "name", Type: fmt.FieldText},
+		{Name: "total", Type: fmt.FieldFloat},
 	}
 }
 func (u *UserTotalModel) Pointers() []any { return []any{&u.Name, &u.Total} }
 
-func (u *User) TableName() string {
+func (u *User) ModelName() string {
 	return "users"
 }
 
-func (u *User) Schema() []twfmt.Field {
-	return []twfmt.Field{
-		{Name: "id", Type: twfmt.FieldInt, PK: true, AutoInc: true},
-		{Name: "name", Type: twfmt.FieldText},
-		{Name: "age", Type: twfmt.FieldInt},
+func (u *User) Schema() []fmt.Field {
+	return []fmt.Field{
+		{Name: "id", Type: fmt.FieldInt, PK: true, AutoInc: true},
+		{Name: "name", Type: fmt.FieldText},
+		{Name: "age", Type: fmt.FieldInt},
 	}
 }
 
@@ -231,10 +230,10 @@ func TestSqliteAdapter(t *testing.T) {
 	db.Create(&User{Name: "Bob", Age: 25})
 	var users []*User
 	q = db.Query(&User{})
-	err = q.ReadAll(func() orm.Model {
+	err = q.ReadAll(func() fmt.Model {
 		u := &User{}
 		return u
-	}, func(m orm.Model) {
+	}, func(m fmt.Model) {
 		users = append(users, m.(*User))
 	})
 	if err != nil {
@@ -248,7 +247,7 @@ func TestSqliteAdapter(t *testing.T) {
 	var inUsers []*User
 	qIn := db.Query(&User{})
 	qIn.Where("name").In([]any{"Alice", "Bob"})
-	err = qIn.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
+	err = qIn.ReadAll(func() fmt.Model { return &User{} }, func(m fmt.Model) {
 		inUsers = append(inUsers, m.(*User))
 	})
 	if err != nil {
@@ -277,7 +276,7 @@ func TestSqliteAdapter(t *testing.T) {
 	// Verify Delete
 	users = nil
 	q = db.Query(&User{})
-	err = q.ReadAll(func() orm.Model { return &User{} }, func(m orm.Model) {
+	err = q.ReadAll(func() fmt.Model { return &User{} }, func(m fmt.Model) {
 		users = append(users, m.(*User))
 	})
 	if err != nil {
@@ -293,11 +292,11 @@ type errorExecutor struct {
 }
 
 func (e *errorExecutor) Close() error {
-	return fmt.Errorf("close error")
+	return fmt.Err("close error")
 }
 
 func (e *errorExecutor) Exec(query string, args ...any) error {
-	return fmt.Errorf("exec error")
+	return fmt.Err("exec error")
 }
 
 func TestCloseError(t *testing.T) {
@@ -320,17 +319,17 @@ type BadModel struct {
 	Name string
 }
 
-func (b *BadModel) TableName() string      { return "" }
-func (b *BadModel) Schema() []twfmt.Field  { return nil }
-func (b *BadModel) Pointers() []any        { return nil }
+func (b *BadModel) ModelName() string   { return "" }
+func (b *BadModel) Schema() []fmt.Field { return nil }
+func (b *BadModel) Pointers() []any     { return nil }
 
 type NoColsModel struct {
 	Name string
 }
 
-func (n *NoColsModel) TableName() string      { return "no_cols" }
-func (n *NoColsModel) Schema() []twfmt.Field  { return nil }
-func (n *NoColsModel) Pointers() []any        { return nil }
+func (n *NoColsModel) ModelName() string   { return "no_cols" }
+func (n *NoColsModel) Schema() []fmt.Field { return nil }
+func (n *NoColsModel) Pointers() []any     { return nil }
 
 func TestCreateTable(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
@@ -587,7 +586,7 @@ func TestTransaction(t *testing.T) {
 		if err := tx.Create(&User{Name: "Dave", Age: 50}); err != nil {
 			return err
 		}
-		return fmt.Errorf("rollback")
+		return fmt.Err("rollback")
 	})
 	if err == nil {
 		t.Fatalf("Tx rollback should have returned error")
@@ -631,8 +630,8 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 	var users []*User
 	q := db.Query(&User{})
 	err = q.ReadAll(
-		func() orm.Model { return &User{} },
-		func(m orm.Model) { users = append(users, m.(*User)) },
+		func() fmt.Model { return &User{} },
+		func(m fmt.Model) { users = append(users, m.(*User)) },
 	)
 	if err != nil {
 		t.Fatalf("ReadAll: %v", err)

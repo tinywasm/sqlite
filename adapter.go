@@ -5,7 +5,7 @@ import (
 
 	"github.com/tinywasm/orm"
 
-	. "github.com/tinywasm/fmt"
+	"github.com/tinywasm/fmt"
 	_ "modernc.org/sqlite" // SQLite driver
 )
 
@@ -13,11 +13,11 @@ import (
 func Open(dsn string) (*orm.DB, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, Errf("failed to open sqlite database: %v", err)
+		return nil, fmt.Errf("failed to open sqlite database: %v", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, Errf("failed to ping sqlite database: %v", err)
+		return nil, fmt.Errf("failed to ping sqlite database: %v", err)
 	}
 
 	// SQLite does not support concurrent writers. In-memory databases (:memory:)
@@ -35,7 +35,7 @@ func Open(dsn string) (*orm.DB, error) {
 // Close closes the database connection associated with the orm.DB.
 func Close(db *orm.DB) error {
 	if db == nil || db.RawExecutor() == nil {
-		return Err("database instance or executor is nil")
+		return fmt.Err("database instance or executor is nil")
 	}
 	return db.Close()
 }
@@ -43,7 +43,7 @@ func Close(db *orm.DB) error {
 // ExecSQL executes raw SQL. Useful for testing or migrations.
 func ExecSQL(db *orm.DB, query string, args ...any) error {
 	if db == nil || db.RawExecutor() == nil {
-		return Err("database instance or executor is nil")
+		return fmt.Err("database instance or executor is nil")
 	}
 	return db.RawExecutor().Exec(query, args...)
 }
