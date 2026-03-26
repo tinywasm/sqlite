@@ -3,8 +3,8 @@ module github.com/tinywasm/sqlite
 go 1.25.2
 
 require (
-	github.com/tinywasm/fmt v0.19.0
-	github.com/tinywasm/orm v0.3.3
+	github.com/tinywasm/fmt v0.20.0
+	github.com/tinywasm/orm v0.4.0
 	modernc.org/sqlite v1.46.1
 )
 
