@@ -3,12 +3,12 @@ package sqlite
 import (
 	"database/sql"
 
-	twfmt "github.com/tinywasm/fmt"
+	"github.com/tinywasm/fmt"
 	"github.com/tinywasm/orm"
 )
 
 // ExportTranslateQuery exposes translation purely for testing unsupported action cases.
-func ExportTranslateQuery(q orm.Query, m twfmt.Model) (string, []any, error) {
+func ExportTranslateQuery(q orm.Query, m fmt.Model) (string, []any, error) {
 	return translateQuery(q, m)
 }
 

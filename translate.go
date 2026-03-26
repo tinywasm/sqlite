@@ -1,13 +1,13 @@
 package sqlite
 
 import (
-	twfmt "github.com/tinywasm/fmt"
+	"github.com/tinywasm/fmt"
 
 	"github.com/tinywasm/orm"
 )
 
 // translateQuery converts an orm.Query into a SQLite SQL string and arguments.
-func translateQuery(q orm.Query, m twfmt.Model) (string, []any, error) {
+func translateQuery(q orm.Query, m fmt.Model) (string, []any, error) {
 	switch q.Action {
 	case orm.ActionCreate:
 		return buildInsert(q)
@@ -22,20 +22,20 @@ func translateQuery(q orm.Query, m twfmt.Model) (string, []any, error) {
 	case orm.ActionDropTable:
 		return buildDropTable(q)
 	default:
-		return "", nil, twfmt.Errf("unknown query action: %v", q.Action)
+		return "", nil, fmt.Errf("unknown query action: %v", q.Action)
 	}
 }
 
-func buildCreateTable(q orm.Query, m twfmt.Model) (string, []any, error) {
+func buildCreateTable(q orm.Query, m fmt.Model) (string, []any, error) {
 	if m == nil {
-		return "", nil, twfmt.Err("model is required for create table")
+		return "", nil, fmt.Err("model is required for create table")
 	}
 	if q.Table == "" {
-		return "", nil, twfmt.Err("table name is required for create table")
+		return "", nil, fmt.Err("table name is required for create table")
 	}
 
 	var sb []string
-	sb = append(sb, twfmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (", q.Table))
+	sb = append(sb, fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (", q.Table))
 
 	fields := m.Schema()
 
@@ -50,7 +50,7 @@ func buildCreateTable(q orm.Query, m twfmt.Model) (string, []any, error) {
 
 	var cols []string
 	for _, f := range fields {
-		col := twfmt.Sprintf("%s %s", f.Name, sqliteType(f.Type))
+		col := fmt.Sprintf("%s %s", f.Name, sqliteType(f.Type))
 		if f.PK {
 			if compositePK {
 				// Composite PK: columns must be NOT NULL; constraint emitted as table-level below.
@@ -58,7 +58,7 @@ func buildCreateTable(q orm.Query, m twfmt.Model) (string, []any, error) {
 			} else {
 				col += " PRIMARY KEY"
 				// AUTOINCREMENT is only allowed on INTEGER PRIMARY KEY in SQLite
-				if f.AutoInc && f.Type == twfmt.FieldInt {
+				if f.AutoInc && f.Type == fmt.FieldInt {
 					col += " AUTOINCREMENT"
 				}
 			}
@@ -73,7 +73,7 @@ func buildCreateTable(q orm.Query, m twfmt.Model) (string, []any, error) {
 	}
 
 	if compositePK {
-		cols = append(cols, twfmt.Sprintf("PRIMARY KEY (%s)", twfmt.Convert(pkCols).Join(", ").String()))
+		cols = append(cols, fmt.Sprintf("PRIMARY KEY (%s)", fmt.Convert(pkCols).Join(", ").String()))
 	}
 
 	if ext, ok := m.(interface{ SchemaExt() []orm.FieldExt }); ok {
@@ -83,33 +83,33 @@ func buildCreateTable(q orm.Query, m twfmt.Model) (string, []any, error) {
 				if refCol == "" {
 					refCol = "id"
 				}
-				cols = append(cols, twfmt.Sprintf("CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)", q.Table, f.Name, f.Name, f.Ref, refCol))
+				cols = append(cols, fmt.Sprintf("CONSTRAINT fk_%s_%s FOREIGN KEY (%s) REFERENCES %s(%s)", q.Table, f.Name, f.Name, f.Ref, refCol))
 			}
 		}
 	}
 
-	sb = append(sb, twfmt.Convert(cols).Join(", ").String())
+	sb = append(sb, fmt.Convert(cols).Join(", ").String())
 	sb = append(sb, ")")
 
-	return twfmt.Convert(sb).Join("").String(), nil, nil
+	return fmt.Convert(sb).Join("").String(), nil, nil
 }
 
 func buildDropTable(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, twfmt.Err("table name is required for drop table")
+		return "", nil, fmt.Err("table name is required for drop table")
 	}
-	return twfmt.Sprintf("DROP TABLE IF EXISTS %s", q.Table), nil, nil
+	return fmt.Sprintf("DROP TABLE IF EXISTS %s", q.Table), nil, nil
 }
 
-func sqliteType(t twfmt.FieldType) string {
+func sqliteType(t fmt.FieldType) string {
 	switch t {
-	case twfmt.FieldInt:
+	case fmt.FieldInt:
 		return "INTEGER"
-	case twfmt.FieldFloat:
+	case fmt.FieldFloat:
 		return "REAL"
-	case twfmt.FieldBool:
+	case fmt.FieldBool:
 		return "INTEGER" // 0 or 1
-	case twfmt.FieldBlob:
+	case fmt.FieldBlob:
 		return "BLOB"
 	default:
 		return "TEXT"
@@ -118,26 +118,26 @@ func sqliteType(t twfmt.FieldType) string {
 
 func buildInsert(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, twfmt.Err("table name is required for insert")
+		return "", nil, fmt.Err("table name is required for insert")
 	}
 	if len(q.Columns) == 0 {
-		return "", nil, twfmt.Err("columns are required for insert")
+		return "", nil, fmt.Err("columns are required for insert")
 	}
 
-	cols := twfmt.Convert(q.Columns).Join(", ").String()
+	cols := fmt.Convert(q.Columns).Join(", ").String()
 	placeholders := make([]string, len(q.Columns))
 	for i := range placeholders {
 		placeholders[i] = "?"
 	}
-	vals := twfmt.Convert(placeholders).Join(", ").String()
+	vals := fmt.Convert(placeholders).Join(", ").String()
 
-	sql := twfmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", q.Table, cols, vals)
+	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", q.Table, cols, vals)
 	return sql, q.Values, nil
 }
 
 func buildSelect(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, twfmt.Err("table name is required for select")
+		return "", nil, fmt.Err("table name is required for select")
 	}
 	cols := "*"
 
@@ -148,45 +148,45 @@ func buildSelect(q orm.Query) (string, []any, error) {
 
 	groupBySQL := ""
 	if len(q.GroupBy) > 0 {
-		groupBySQL = " GROUP BY " + twfmt.Convert(q.GroupBy).Join(", ").String()
+		groupBySQL = " GROUP BY " + fmt.Convert(q.GroupBy).Join(", ").String()
 	}
 
 	orderBySQL := ""
 	if len(q.OrderBy) > 0 {
 		var orders []string
 		for _, o := range q.OrderBy {
-			orders = append(orders, twfmt.Sprintf("%s %s", o.Column(), o.Dir()))
+			orders = append(orders, fmt.Sprintf("%s %s", o.Column(), o.Dir()))
 		}
-		orderBySQL = " ORDER BY " + twfmt.Convert(orders).Join(", ").String()
+		orderBySQL = " ORDER BY " + fmt.Convert(orders).Join(", ").String()
 	}
 
 	limitSQL := ""
 	if q.Limit > 0 {
-		limitSQL = twfmt.Sprintf(" LIMIT %d", q.Limit)
+		limitSQL = fmt.Sprintf(" LIMIT %d", q.Limit)
 	}
 
 	offsetSQL := ""
 	if q.Offset > 0 {
-		offsetSQL = twfmt.Sprintf(" OFFSET %d", q.Offset)
+		offsetSQL = fmt.Sprintf(" OFFSET %d", q.Offset)
 	}
 
-	sql := twfmt.Sprintf("SELECT %s FROM %s%s%s%s%s%s", cols, q.Table, whereSQL, groupBySQL, orderBySQL, limitSQL, offsetSQL)
+	sql := fmt.Sprintf("SELECT %s FROM %s%s%s%s%s%s", cols, q.Table, whereSQL, groupBySQL, orderBySQL, limitSQL, offsetSQL)
 	return sql, args, nil
 }
 
 func buildUpdate(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, twfmt.Err("table name is required for update")
+		return "", nil, fmt.Err("table name is required for update")
 	}
 	if len(q.Columns) == 0 {
-		return "", nil, twfmt.Err("columns are required for update")
+		return "", nil, fmt.Err("columns are required for update")
 	}
 
 	var setClauses []string
 	var args []any
 
 	for i, col := range q.Columns {
-		setClauses = append(setClauses, twfmt.Sprintf("%s = ?", col))
+		setClauses = append(setClauses, fmt.Sprintf("%s = ?", col))
 		args = append(args, q.Values[i])
 	}
 
@@ -196,13 +196,13 @@ func buildUpdate(q orm.Query) (string, []any, error) {
 	}
 	args = append(args, condArgs...)
 
-	sql := twfmt.Sprintf("UPDATE %s SET %s%s", q.Table, twfmt.Convert(setClauses).Join(", ").String(), whereSQL)
+	sql := fmt.Sprintf("UPDATE %s SET %s%s", q.Table, fmt.Convert(setClauses).Join(", ").String(), whereSQL)
 	return sql, args, nil
 }
 
 func buildDelete(q orm.Query) (string, []any, error) {
 	if q.Table == "" {
-		return "", nil, twfmt.Err("table name is required for delete")
+		return "", nil, fmt.Err("table name is required for delete")
 	}
 
 	whereSQL, args, err := buildConditions(q.Conditions)
@@ -210,7 +210,7 @@ func buildDelete(q orm.Query) (string, []any, error) {
 		return "", nil, err
 	}
 
-	sql := twfmt.Sprintf("DELETE FROM %s%s", q.Table, whereSQL)
+	sql := fmt.Sprintf("DELETE FROM %s%s", q.Table, whereSQL)
 	return sql, args, nil
 }
 
@@ -227,28 +227,28 @@ func buildConditions(conditions []orm.Condition) (string, []any, error) {
 		if c.Operator() == "IN" {
 			slice, ok := c.Value().([]any)
 			if !ok {
-				return "", nil, twfmt.Errf("IN operator requires []any value, got %T", c.Value())
+				return "", nil, fmt.Errf("IN operator requires []any value, got %T", c.Value())
 			}
 			if len(slice) == 0 {
-				return "", nil, twfmt.Err("IN operator slice cannot be empty")
+				return "", nil, fmt.Err("IN operator slice cannot be empty")
 			}
 			placeholders := make([]string, len(slice))
 			for j := range placeholders {
 				placeholders[j] = "?"
 			}
-			inVals := twfmt.Convert(placeholders).Join(", ").String()
-			clause = twfmt.Sprintf("%s IN (%s)", c.Field(), inVals)
+			inVals := fmt.Convert(placeholders).Join(", ").String()
+			clause = fmt.Sprintf("%s IN (%s)", c.Field(), inVals)
 			args = append(args, slice...)
 		} else {
-			clause = twfmt.Sprintf("%s %s ?", c.Field(), c.Operator())
+			clause = fmt.Sprintf("%s %s ?", c.Field(), c.Operator())
 			args = append(args, c.Value())
 		}
 
 		if i > 0 {
-			clause = twfmt.Sprintf(" %s %s", c.Logic(), clause)
+			clause = fmt.Sprintf(" %s %s", c.Logic(), clause)
 		}
 		whereClauses = append(whereClauses, clause)
 	}
 
-	return " WHERE " + twfmt.Convert(whereClauses).Join("").String(), args, nil
+	return " WHERE " + fmt.Convert(whereClauses).Join("").String(), args, nil
 }
