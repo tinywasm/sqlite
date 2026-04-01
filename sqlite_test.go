@@ -26,7 +26,7 @@ func (o *Order) ModelName() string {
 
 func (o *Order) Schema() []fmt.Field {
 	return []fmt.Field{
-		{Name: "id", Type: fmt.FieldInt, PK: true, AutoInc: true},
+		{Name: "id", Type: fmt.FieldInt, DB: &fmt.FieldDB{PK: true, AutoInc: true}},
 		{Name: "user_id", Type: fmt.FieldInt},
 		{Name: "amount", Type: fmt.FieldFloat},
 	}
@@ -163,7 +163,7 @@ func (u *User) ModelName() string {
 
 func (u *User) Schema() []fmt.Field {
 	return []fmt.Field{
-		{Name: "id", Type: fmt.FieldInt, PK: true, AutoInc: true},
+		{Name: "id", Type: fmt.FieldInt, DB: &fmt.FieldDB{PK: true, AutoInc: true}},
 		{Name: "name", Type: fmt.FieldText},
 		{Name: "age", Type: fmt.FieldInt},
 	}

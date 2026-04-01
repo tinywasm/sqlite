@@ -42,7 +42,7 @@ func buildCreateTable(q orm.Query, m fmt.Model) (string, []any, error) {
 	// Count composite PK fields upfront to decide between inline and table-level PK.
 	var pkCols []string
 	for _, f := range fields {
-		if f.PK {
+		if f.IsPK() {
 			pkCols = append(pkCols, f.Name)
 		}
 	}
@@ -51,14 +51,14 @@ func buildCreateTable(q orm.Query, m fmt.Model) (string, []any, error) {
 	var cols []string
 	for _, f := range fields {
 		col := fmt.Sprintf("%s %s", f.Name, sqliteType(f.Type))
-		if f.PK {
+		if f.IsPK() {
 			if compositePK {
 				// Composite PK: columns must be NOT NULL; constraint emitted as table-level below.
 				col += " NOT NULL"
 			} else {
 				col += " PRIMARY KEY"
 				// AUTOINCREMENT is only allowed on INTEGER PRIMARY KEY in SQLite
-				if f.AutoInc && f.Type == fmt.FieldInt {
+				if f.IsAutoInc() && f.Type == fmt.FieldInt {
 					col += " AUTOINCREMENT"
 				}
 			}
@@ -66,7 +66,7 @@ func buildCreateTable(q orm.Query, m fmt.Model) (string, []any, error) {
 		if f.NotNull {
 			col += " NOT NULL"
 		}
-		if f.Unique {
+		if f.IsUnique() {
 			col += " UNIQUE"
 		}
 		cols = append(cols, col)
