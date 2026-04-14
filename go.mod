@@ -4,7 +4,7 @@ go 1.25.2
 
 require (
 	github.com/tinywasm/fmt v0.23.2
-	github.com/tinywasm/orm v0.6.2
+	github.com/tinywasm/orm v0.7.0
 	modernc.org/sqlite v1.46.1
 )
 
