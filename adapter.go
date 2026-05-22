@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/tinywasm/orm"
+	"github.com/tinywasm/sqlt"
 
 	"github.com/tinywasm/fmt"
 	_ "modernc.org/sqlite" // SQLite driver
@@ -28,7 +29,7 @@ func Open(dsn string) (*orm.DB, error) {
 	db.SetMaxIdleConns(1)
 
 	exec := &sqliteExecutor{db: db}
-	compiler := sqliteCompiler{}
+	compiler := sqlt.NewCompiler()
 	return orm.New(exec, compiler), nil
 }
 
@@ -46,4 +47,36 @@ func ExecSQL(db *orm.DB, query string, args ...any) error {
 		return fmt.Err("database instance or executor is nil")
 	}
 	return db.RawExecutor().Exec(query, args...)
+}
+
+// GetExecutor returns the executor from the orm.DB instance.
+func GetExecutor(db *orm.DB) orm.Executor {
+	if db == nil {
+		return nil
+	}
+	return db.RawExecutor()
+}
+
+// GetSqlDB returns the underlying *sql.DB from the orm.DB instance.
+func GetSqlDB(db *orm.DB) *sql.DB {
+	if db == nil {
+		return nil
+	}
+	exec, ok := db.RawExecutor().(*sqliteExecutor)
+	if !ok {
+		return nil
+	}
+	return exec.db
+}
+
+// GetTxExecutor begins a new transaction and returns a TxBoundExecutor.
+func GetTxExecutor(db *orm.DB) (orm.TxBoundExecutor, error) {
+	if db == nil {
+		return nil, fmt.Err("database instance is nil")
+	}
+	txExec, ok := db.RawExecutor().(orm.TxExecutor)
+	if !ok {
+		return nil, fmt.Err("executor does not support transactions")
+	}
+	return txExec.BeginTx()
 }
