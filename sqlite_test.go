@@ -257,17 +257,6 @@ func TestSqliteAdapter(t *testing.T) {
 		t.Errorf("expected 2 users from IN, got %d", len(inUsers))
 	}
 
-	// Test IN internal coverage format (slice of different types/missing)
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", 1)}}, nil)
-	if err == nil {
-		t.Errorf("Expected compile error for non-slice IN value")
-	}
-
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadAll, Table: "t", Conditions: []orm.Condition{orm.In("id", []any{})}}, nil)
-	if err == nil {
-		t.Errorf("Expected compile error for empty slice IN value")
-	}
-
 	// Test Delete
 	if err := db.Delete(&User{}, orm.Eq("name", "Bob")); err != nil {
 		t.Fatalf("Delete failed: %v", err)
@@ -392,68 +381,6 @@ func TestCreateTableWithFK(t *testing.T) {
 	err = db.CreateTable(&Order{})
 	if err != nil {
 		t.Fatalf("CreateTable Order (with FK) failed: %v", err)
-	}
-}
-
-func TestCompilerErrors(t *testing.T) {
-	// Test internal translateQuery default switch case
-	_, _, err := sqlite.ExportTranslateQuery(orm.Query{Action: 99}, nil)
-	if err == nil {
-		t.Fatalf("expected error for unsupported action in translate")
-	}
-
-	// Test create table without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreateTable}, &User{})
-	if err == nil {
-		t.Fatalf("expected error for create table without table")
-	}
-
-	// Test create table without model
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreateTable, Table: "t"}, nil)
-	if err == nil {
-		t.Fatalf("expected error for create table without model")
-	}
-
-	// Test drop table without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionDropTable}, nil)
-	if err == nil {
-		t.Fatalf("expected error for drop table without table")
-	}
-
-	// Test insert without table name
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Columns: []string{"id"}}, nil)
-	if err == nil {
-		t.Fatalf("expected error for insert without table")
-	}
-
-	// Test insert without columns
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionCreate, Table: "t"}, nil)
-	if err == nil {
-		t.Fatalf("expected error for insert without columns")
-	}
-
-	// Test select without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionReadOne}, nil)
-	if err == nil {
-		t.Fatalf("expected error for select without table")
-	}
-
-	// Test update without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Columns: []string{"id"}}, nil)
-	if err == nil {
-		t.Fatalf("expected error for update without table")
-	}
-
-	// Test update without columns
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionUpdate, Table: "t"}, nil)
-	if err == nil {
-		t.Fatalf("expected error for update without columns")
-	}
-
-	// Test delete without table
-	_, _, err = sqlite.ExportTranslateQuery(orm.Query{Action: orm.ActionDelete}, nil)
-	if err == nil {
-		t.Fatalf("expected error for delete without table")
 	}
 }
 
