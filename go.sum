@@ -14,8 +14,8 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/tinywasm/fmt v0.23.10 h1:hBvPf6ogBR3zYTYjlnnogEzyzZvtjRGOqmYmL5ZRoCU=
 github.com/tinywasm/fmt v0.23.10/go.mod h1:L2GCAi6asgytPV6TVvGrRq5Ml+DkUt1Ijo5i/2J1jOY=
-github.com/tinywasm/orm v0.8.3 h1:NojuaGmyffl+lZOgiF3b0ta9lNfC4sJsXKXhRneQd3E=
-github.com/tinywasm/orm v0.8.3/go.mod h1:Ht7EldRrOH0UZovkF/REkdebPIY5FSxhhSPoszuWaEs=
+github.com/tinywasm/orm v0.9.0 h1:yjt5FXomvVgtScAbKqfwGcf28O5oZrJiR8lRi53zhxg=
+github.com/tinywasm/orm v0.9.0/go.mod h1:4snjkqEfd4RvhyAaOQXv4i1hLv0b7Z6n7/gPV4spsbw=
 github.com/tinywasm/sqlt v0.0.2 h1:RhGkIBdlyXJSfVSkkNbI09TGcVK6vrEomL9Ftii5HXE=
 github.com/tinywasm/sqlt v0.0.2/go.mod h1:vMKqenBUBRCE6olR7li5VJDqCAQEg28PGHJifloep2Q=
 golang.org/x/mod v0.33.0 h1:tHFzIWbBifEmbwtGz65eaWyGiGZatSrT9prnU8DbVL8=
