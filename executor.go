@@ -17,7 +17,7 @@ func (e *sqliteExecutor) Exec(query string, args ...any) error {
 }
 
 func (e *sqliteExecutor) QueryRow(query string, args ...any) orm.Scanner {
-	return e.db.QueryRow(query, args...)
+	return &errScanner{s: e.db.QueryRow(query, args...)}
 }
 
 func (e *sqliteExecutor) Query(query string, args ...any) (orm.Rows, error) {
@@ -47,7 +47,7 @@ func (e *sqliteTxExecutor) Exec(query string, args ...any) error {
 }
 
 func (e *sqliteTxExecutor) QueryRow(query string, args ...any) orm.Scanner {
-	return e.tx.QueryRow(query, args...)
+	return &errScanner{s: e.tx.QueryRow(query, args...)}
 }
 
 func (e *sqliteTxExecutor) Query(query string, args ...any) (orm.Rows, error) {
@@ -64,4 +64,18 @@ func (e *sqliteTxExecutor) Rollback() error {
 
 func (e *sqliteTxExecutor) Close() error {
 	return nil // sql.Tx doesn't have an explicit close outside of Commit/Rollback, but we must implement the interface
+}
+
+type errScanner struct {
+	s orm.Scanner
+}
+
+func (e *errScanner) Scan(dest ...any) error {
+	if err := e.s.Scan(dest...); err != nil {
+		if err == sql.ErrNoRows {
+			return orm.ErrNoRows
+		}
+		return err
+	}
+	return nil
 }

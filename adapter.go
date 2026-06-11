@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"strings"
 
 	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlt"
@@ -10,9 +11,13 @@ import (
 	_ "modernc.org/sqlite" // SQLite driver
 )
 
+func init() {
+	orm.Register("sqlite", Open)
+}
+
 // Open creates a new sqlite connection and wraps it in an orm.DB.
 func Open(dsn string) (*orm.DB, error) {
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", normalizeDSN(dsn))
 	if err != nil {
 		return nil, fmt.Errf("failed to open sqlite database: %v", err)
 	}
@@ -79,4 +84,14 @@ func GetTxExecutor(db *orm.DB) (orm.TxBoundExecutor, error) {
 		return nil, fmt.Err("executor does not support transactions")
 	}
 	return txExec.BeginTx()
+}
+
+func normalizeDSN(dsn string) string {
+	if strings.HasPrefix(dsn, "sqlite://") {
+		return strings.TrimPrefix(dsn, "sqlite://")
+	}
+	if strings.HasPrefix(dsn, "sqlite:") {
+		return strings.TrimPrefix(dsn, "sqlite:")
+	}
+	return dsn
 }
