@@ -5,7 +5,7 @@ This is the `tinywasm/sqlite` adapter for `github.com/tinywasm/orm`.
 
 ## Usage
 
-You can now initialize your database with a single line of code:
+The adapter registers itself under the `"sqlite"` scheme. You can open a database using `sqlite.Open` directly or via `orm.Open`:
 
 ```go
 package main
@@ -13,12 +13,17 @@ package main
 import (
 	"log"
 
+	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
 )
 
 func main() {
-	// sqlite.Open returns a fully instantiated *orm.DB instance
+	// Directly:
 	db, err := sqlite.Open("my_database.sqlite")
+
+	// Or via the registry (uses normalizeDSN to handle sqlite:// and sqlite::memory:):
+	db, err = orm.Open("sqlite://my_database.sqlite")
+
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -28,6 +33,13 @@ func main() {
 	// ...
 }
 ```
+
+## Features
+
+- **Registry Support:** Registers as `"sqlite"` to `orm.Register`.
+- **Error Mapping:** Automatically maps `sql.ErrNoRows` to `orm.ErrNoRows`.
+- **Schema Introspection:** Implements `TableIntrospector` for `db.SyncSchema` support, enabling column renames and drops.
+- **WASM Compatible:** Uses `modernc.org/sqlite` for pure Go/CGO-less execution.
 
 ## Update
 
