@@ -4,13 +4,15 @@ import (
 	"github.com/tinywasm/orm"
 )
 
-func tableColumns(q interface {
+type queryer interface {
 	Query(string, ...any) (orm.Rows, error)
-}, table string) ([]string, error) {
+}
+
+func tableColumns(q queryer, table string) ([]string, error) {
 	// PRAGMA table_info does not support parameter binding.
 	// Table name comes from ModelName(), which is usually trusted,
-	// but we could add basic validation if needed.
-	rows, err := q.Query("PRAGMA table_info(" + table + ")")
+	// but we quote it just in case.
+	rows, err := q.Query("PRAGMA table_info(\"" + table + "\")")
 	if err != nil {
 		return nil, err
 	}
@@ -38,6 +40,74 @@ func (e *sqliteTxExecutor) TableColumns(table string) ([]string, error) {
 	return tableColumns(e, table)
 }
 
+func tables(q queryer) ([]string, error) {
+	rows, err := q.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		tables = append(tables, name)
+	}
+	return tables, rows.Err()
+}
+
+func columns(q queryer, table string) ([]orm.ColumnInfo, error) {
+	rows, err := q.Query("PRAGMA table_info(\"" + table + "\")")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cols []orm.ColumnInfo
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt any
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		cols = append(cols, orm.ColumnInfo{
+			Name:    name,
+			Type:    ctype,
+			NotNull: notnull == 1,
+			PK:      pk > 0,
+		})
+	}
+	return cols, rows.Err()
+}
+
+// Tables returns all user-defined table names in the database.
+func (e *sqliteExecutor) Tables() ([]string, error) {
+	return tables(e)
+}
+
+// Columns returns full column metadata for the given table using PRAGMA table_info.
+func (e *sqliteExecutor) Columns(table string) ([]orm.ColumnInfo, error) {
+	return columns(e, table)
+}
+
+// Tables returns all user-defined table names in the database.
+func (e *sqliteTxExecutor) Tables() ([]string, error) {
+	return tables(e)
+}
+
+// Columns returns full column metadata for the given table using PRAGMA table_info.
+func (e *sqliteTxExecutor) Columns(table string) ([]orm.ColumnInfo, error) {
+	return columns(e, table)
+}
+
 // Ensure both executors implement TableIntrospector
 var _ orm.TableIntrospector = (*sqliteExecutor)(nil)
 var _ orm.TableIntrospector = (*sqliteTxExecutor)(nil)
+
+// Ensure both executors implement orm.SchemaInspector
+var _ orm.SchemaInspector = (*sqliteExecutor)(nil)
+var _ orm.SchemaInspector = (*sqliteTxExecutor)(nil)
