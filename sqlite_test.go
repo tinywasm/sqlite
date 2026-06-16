@@ -595,3 +595,119 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 		}
 	}
 }
+
+func testSchemaInspector(t *testing.T, inspector orm.SchemaInspector) {
+	// Test Tables()
+	tables, err := inspector.Tables()
+	if err != nil {
+		t.Fatalf("Tables() failed: %v", err)
+	}
+
+	// sqlite_master might contain other things, but our query filters sqlite_%
+	expectedTables := map[string]bool{"users": true, "orders": true}
+	foundCount := 0
+	for _, table := range tables {
+		if expectedTables[table] {
+			foundCount++
+		}
+	}
+	if foundCount != 2 {
+		t.Errorf("expected 2 user tables, got %d from %v", foundCount, tables)
+	}
+
+	// Test Columns() for 'users'
+	cols, err := inspector.Columns("users")
+	if err != nil {
+		t.Fatalf("Columns('users') failed: %v", err)
+	}
+
+	if len(cols) != 3 {
+		t.Fatalf("expected 3 columns for 'users', got %d", len(cols))
+	}
+
+	colMap := make(map[string]orm.ColumnInfo)
+	for _, col := range cols {
+		colMap[col.Name] = col
+	}
+
+	idCol, ok := colMap["id"]
+	if !ok {
+		t.Errorf("column 'id' not found")
+	} else {
+		if !idCol.PK {
+			t.Errorf("expected 'id' to be PK")
+		}
+		// SQLite type might be INTEGER or INT depending on how it was created
+		if idCol.Type != "INTEGER" {
+			t.Errorf("expected type INTEGER, got %s", idCol.Type)
+		}
+	}
+
+	nameCol, ok := colMap["name"]
+	if !ok {
+		t.Errorf("column 'name' not found")
+	} else {
+		if !nameCol.NotNull {
+			t.Errorf("expected 'name' to be NOT NULL")
+		}
+		if nameCol.Type != "TEXT" {
+			t.Errorf("expected type TEXT, got %s", nameCol.Type)
+		}
+	}
+
+	ageCol, ok := colMap["age"]
+	if !ok {
+		t.Errorf("column 'age' not found")
+	} else {
+		if ageCol.NotNull {
+			t.Errorf("expected 'age' to be nullable")
+		}
+	}
+}
+
+func TestSchemaInspector(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create db: %v", err)
+	}
+	defer sqlite.Close(db)
+
+	err = sqlite.ExecSQL(db, `
+		CREATE TABLE users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			age INTEGER
+		);
+		CREATE TABLE orders (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER,
+			amount REAL
+		);
+	`)
+	if err != nil {
+		t.Fatalf("failed to create tables: %v", err)
+	}
+
+	t.Run("Executor", func(t *testing.T) {
+		exec := sqlite.GetExecutor(db)
+		inspector, ok := exec.(orm.SchemaInspector)
+		if !ok {
+			t.Fatalf("executor does not implement orm.SchemaInspector")
+		}
+		testSchemaInspector(t, inspector)
+	})
+
+	t.Run("TxExecutor", func(t *testing.T) {
+		txExec, err := sqlite.GetTxExecutor(db)
+		if err != nil {
+			t.Fatalf("failed to get tx executor: %v", err)
+		}
+		defer txExec.Rollback()
+
+		inspector, ok := txExec.(orm.SchemaInspector)
+		if !ok {
+			t.Fatalf("tx executor does not implement orm.SchemaInspector")
+		}
+		testSchemaInspector(t, inspector)
+	})
+}
