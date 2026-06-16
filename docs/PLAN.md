@@ -1,7 +1,7 @@
 # sqlite — Implementar orm.SchemaInspector
 
 Extender el executor de SQLite para implementar `orm.SchemaInspector`, la
-interfaz que permite al subpaquete `orm/mcp` registrar la tool `db_schema`.
+interfaz que permite al subpaquete `orm/ormcp` registrar la tool `db_schema`.
 
 **Prerequisito:** `tinywasm/orm` debe estar publicado con `orm.SchemaInspector`
 y `orm.ColumnInfo` disponibles antes de aplicar este plan.
