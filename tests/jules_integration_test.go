@@ -1,9 +1,10 @@
 package sqlite_test
 
+import "github.com/tinywasm/model"
+
 import (
 	"testing"
 
-	"github.com/tinywasm/fmt"
 	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
 )
@@ -14,10 +15,10 @@ type SimpleUser struct {
 }
 
 func (s *SimpleUser) ModelName() string { return "simple_users" }
-func (s *SimpleUser) Schema() []fmt.Field {
-	return []fmt.Field{
-		{Name: "id", Type: fmt.FieldText, DB: &fmt.FieldDB{PK: true}},
-		{Name: "email", Type: fmt.FieldText, DB: &fmt.FieldDB{Unique: true}},
+func (s *SimpleUser) Schema() []model.Field {
+	return []model.Field{
+		{Name: "id", Type: model.FieldText, DB: &model.FieldDB{PK: true}},
+		{Name: "email", Type: model.FieldText, DB: &model.FieldDB{Unique: true}},
 	}
 }
 func (s *SimpleUser) Pointers() []any { return []any{&s.ID, &s.Email} }
@@ -28,15 +29,15 @@ type SimpleSession struct {
 }
 
 func (s *SimpleSession) ModelName() string { return "simple_sessions" }
-func (s *SimpleSession) Schema() []fmt.Field {
-	return []fmt.Field{
-		{Name: "id", Type: fmt.FieldText, DB: &fmt.FieldDB{PK: true}},
-		{Name: "user_id", Type: fmt.FieldText},
+func (s *SimpleSession) Schema() []model.Field {
+	return []model.Field{
+		{Name: "id", Type: model.FieldText, DB: &model.FieldDB{PK: true}},
+		{Name: "user_id", Type: model.FieldText},
 	}
 }
 func (s *SimpleSession) SchemaExt() []orm.FieldExt {
 	return []orm.FieldExt{
-		{Field: fmt.Field{Name: "user_id", Type: fmt.FieldText}, Ref: "simple_users", RefColumn: "id"},
+		{Field: model.Field{Name: "user_id", Type: model.FieldText}, Ref: "simple_users", RefColumn: "id"},
 	}
 }
 func (s *SimpleSession) Pointers() []any { return []any{&s.ID, &s.UserID} }

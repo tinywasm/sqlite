@@ -1,10 +1,11 @@
 package sqlite_test
 
+import "github.com/tinywasm/model"
+
 import (
-	"testing"
 	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
-	"github.com/tinywasm/fmt"
+	"testing"
 )
 
 type SyncUser struct {
@@ -14,11 +15,11 @@ type SyncUser struct {
 }
 
 func (u *SyncUser) ModelName() string { return "users" }
-func (u *SyncUser) Schema() []fmt.Field {
-	return []fmt.Field{
-		{Name: "id", Type: fmt.FieldInt, DB: &fmt.FieldDB{PK: true, AutoInc: true}},
-		{Name: "name", Type: fmt.FieldText},
-		{Name: "age", Type: fmt.FieldInt},
+func (u *SyncUser) Schema() []model.Field {
+	return []model.Field{
+		{Name: "id", Type: model.FieldInt, DB: &model.FieldDB{PK: true, AutoInc: true}},
+		{Name: "name", Type: model.FieldText},
+		{Name: "age", Type: model.FieldInt},
 	}
 }
 func (u *SyncUser) Pointers() []any { return []any{&u.ID, &u.Name, &u.Age} }
@@ -83,12 +84,12 @@ type SyncNewUser struct {
 }
 
 func (u *SyncNewUser) ModelName() string { return "users" }
-func (u *SyncNewUser) Schema() []fmt.Field {
-	return []fmt.Field{
-		{Name: "id", Type: fmt.FieldInt, DB: &fmt.FieldDB{PK: true, AutoInc: true}},
-		{Name: "name", Type: fmt.FieldText},
-		{Name: "age", Type: fmt.FieldInt},
-		{Name: "bio", Type: fmt.FieldText},
+func (u *SyncNewUser) Schema() []model.Field {
+	return []model.Field{
+		{Name: "id", Type: model.FieldInt, DB: &model.FieldDB{PK: true, AutoInc: true}},
+		{Name: "name", Type: model.FieldText},
+		{Name: "age", Type: model.FieldInt},
+		{Name: "bio", Type: model.FieldText},
 	}
 }
 func (u *SyncNewUser) Pointers() []any { return []any{&u.ID, &u.Name, &u.Age, &u.Bio} }

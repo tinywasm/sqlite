@@ -12,12 +12,10 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
-github.com/tinywasm/fmt v0.24.6 h1:hdj/49rp3Vr/Ub+ICUb3BbEwo0R4a+8/8nJPnRPsEVQ=
-github.com/tinywasm/fmt v0.24.6/go.mod h1:L2GCAi6asgytPV6TVvGrRq5Ml+DkUt1Ijo5i/2J1jOY=
-github.com/tinywasm/orm v0.9.18 h1:vCmR6MzFpeztuht5cKdSm4XOd1rA7hWC/Wv34aEqW/c=
-github.com/tinywasm/orm v0.9.18/go.mod h1:0rH7qp+bpl2FbsfdptAs1Sk8Ca2bvIhlrtszikiJiHM=
-github.com/tinywasm/sqlt v0.0.5 h1:oxBeZVcgskJqbr4XY+pWUUc05er/lkqfmH8qVtH8cxw=
-github.com/tinywasm/sqlt v0.0.5/go.mod h1:DjmrPdhEc/BzNVu7gthTu1Z5bM4LdmJjinHG2v1y79c=
+github.com/tinywasm/fmt v0.25.0 h1:cF9R0GsMKQbsZclSjIh8A5RBsoULrpzAV1IAz9U2DJU=
+github.com/tinywasm/fmt v0.25.0/go.mod h1:L2GCAi6asgytPV6TVvGrRq5Ml+DkUt1Ijo5i/2J1jOY=
+github.com/tinywasm/model v0.0.2 h1:8+vWpve2ia4V+jBpTD5K25h6soNZ5fJsstalLQ2AWwo=
+github.com/tinywasm/model v0.0.2/go.mod h1:X+zb1GzaP9gLXEFVi+GSmZ4H9+W0UQnN2K9KcxE7vTE=
 golang.org/x/mod v0.33.0 h1:tHFzIWbBifEmbwtGz65eaWyGiGZatSrT9prnU8DbVL8=
 golang.org/x/mod v0.33.0/go.mod h1:swjeQEj+6r7fODbD2cqrnje9PnziFuw4bmLbBZFrQ5w=
 golang.org/x/sync v0.19.0 h1:vV+1eWNmZ5geRlYjzm2adRgW2/mcpevXNg50YZtPCE4=
