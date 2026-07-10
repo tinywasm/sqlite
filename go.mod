@@ -3,22 +3,23 @@ module github.com/tinywasm/sqlite
 go 1.25.2
 
 require (
-	github.com/tinywasm/fmt v0.25.1
-	github.com/tinywasm/model v0.0.6
-	github.com/tinywasm/orm v0.9.26
-	github.com/tinywasm/sqlt v0.0.6
-	modernc.org/sqlite v1.46.1
+	github.com/tinywasm/fmt v0.25.2
+	github.com/tinywasm/model v0.0.8
+	github.com/tinywasm/orm v0.9.27
+	github.com/tinywasm/sqlt v0.0.7
+	modernc.org/sqlite v1.53.0
 )
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
-	modernc.org/libc v1.69.0 // indirect
+	github.com/tinywasm/ddlc v0.0.4 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/tools v0.48.0 // indirect
+	modernc.org/libc v1.74.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
