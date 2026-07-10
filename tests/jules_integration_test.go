@@ -1,11 +1,10 @@
 package sqlite_test
 
-import "github.com/tinywasm/model"
-
 import (
 	"testing"
 
-	"github.com/tinywasm/orm"
+	"github.com/tinywasm/ddlc"
+	"github.com/tinywasm/model"
 	"github.com/tinywasm/sqlite"
 )
 
@@ -17,8 +16,8 @@ type SimpleUser struct {
 func (s *SimpleUser) ModelName() string { return "simple_users" }
 func (s *SimpleUser) Schema() []model.Field {
 	return []model.Field{
-		{Name: "id", Type: model.FieldText, DB: &model.FieldDB{PK: true}},
-		{Name: "email", Type: model.FieldText, DB: &model.FieldDB{Unique: true}},
+		{Name: "id", Type: model.Text(), DB: &model.FieldDB{PK: true}},
+		{Name: "email", Type: model.Text(), DB: &model.FieldDB{Unique: true}},
 	}
 }
 func (s *SimpleUser) Pointers() []any { return []any{&s.ID, &s.Email} }
@@ -31,13 +30,13 @@ type SimpleSession struct {
 func (s *SimpleSession) ModelName() string { return "simple_sessions" }
 func (s *SimpleSession) Schema() []model.Field {
 	return []model.Field{
-		{Name: "id", Type: model.FieldText, DB: &model.FieldDB{PK: true}},
-		{Name: "user_id", Type: model.FieldText},
+		{Name: "id", Type: model.Text(), DB: &model.FieldDB{PK: true}},
+		{Name: "user_id", Type: model.Text()},
 	}
 }
-func (s *SimpleSession) SchemaExt() []orm.FieldExt {
-	return []orm.FieldExt{
-		{Field: model.Field{Name: "user_id", Type: model.FieldText}, Ref: "simple_users", RefColumn: "id"},
+func (s *SimpleSession) SchemaExt() []ddlc.FieldExt {
+	return []ddlc.FieldExt{
+		{Field: model.Field{Name: "user_id", Type: model.Text()}, Ref: "simple_users", RefColumn: "id"},
 	}
 }
 func (s *SimpleSession) Pointers() []any { return []any{&s.ID, &s.UserID} }

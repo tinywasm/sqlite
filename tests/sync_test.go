@@ -17,9 +17,9 @@ type SyncUser struct {
 func (u *SyncUser) ModelName() string { return "users" }
 func (u *SyncUser) Schema() []model.Field {
 	return []model.Field{
-		{Name: "id", Type: model.FieldInt, DB: &model.FieldDB{PK: true, AutoInc: true}},
-		{Name: "name", Type: model.FieldText},
-		{Name: "age", Type: model.FieldInt},
+		{Name: "id", Type: model.Int(), DB: &model.FieldDB{PK: true, AutoInc: true}},
+		{Name: "name", Type: model.Text()},
+		{Name: "age", Type: model.Int()},
 	}
 }
 func (u *SyncUser) Pointers() []any { return []any{&u.ID, &u.Name, &u.Age} }
@@ -86,10 +86,10 @@ type SyncNewUser struct {
 func (u *SyncNewUser) ModelName() string { return "users" }
 func (u *SyncNewUser) Schema() []model.Field {
 	return []model.Field{
-		{Name: "id", Type: model.FieldInt, DB: &model.FieldDB{PK: true, AutoInc: true}},
-		{Name: "name", Type: model.FieldText},
-		{Name: "age", Type: model.FieldInt},
-		{Name: "bio", Type: model.FieldText},
+		{Name: "id", Type: model.Int(), DB: &model.FieldDB{PK: true, AutoInc: true}},
+		{Name: "name", Type: model.Text()},
+		{Name: "age", Type: model.Int()},
+		{Name: "bio", Type: model.Text()},
 	}
 }
 func (u *SyncNewUser) Pointers() []any { return []any{&u.ID, &u.Name, &u.Age, &u.Bio} }

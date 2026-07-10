@@ -1,11 +1,11 @@
 package sqlite_test
 
-import "github.com/tinywasm/model"
-
 import (
 	"testing"
 
+	"github.com/tinywasm/ddlc"
 	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/model"
 	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
 )
@@ -28,15 +28,15 @@ func (o *Order) ModelName() string {
 
 func (o *Order) Schema() []model.Field {
 	return []model.Field{
-		{Name: "id", Type: model.FieldInt, DB: &model.FieldDB{PK: true, AutoInc: true}},
-		{Name: "user_id", Type: model.FieldInt},
-		{Name: "amount", Type: model.FieldFloat},
+		{Name: "id", Type: model.Int(), DB: &model.FieldDB{PK: true, AutoInc: true}},
+		{Name: "user_id", Type: model.Int()},
+		{Name: "amount", Type: model.Float()},
 	}
 }
 
-func (o *Order) SchemaExt() []orm.FieldExt {
-	return []orm.FieldExt{
-		{Field: model.Field{Name: "user_id", Type: model.FieldInt}, Ref: "users", RefColumn: "id"},
+func (o *Order) SchemaExt() []ddlc.FieldExt {
+	return []ddlc.FieldExt{
+		{Field: model.Field{Name: "user_id", Type: model.Int()}, Ref: "users", RefColumn: "id"},
 	}
 }
 
@@ -153,8 +153,8 @@ type UserTotalModel struct {
 func (u *UserTotalModel) ModelName() string { return "user_totals" }
 func (u *UserTotalModel) Schema() []model.Field {
 	return []model.Field{
-		{Name: "name", Type: model.FieldText},
-		{Name: "total", Type: model.FieldFloat},
+		{Name: "name", Type: model.Text()},
+		{Name: "total", Type: model.Float()},
 	}
 }
 func (u *UserTotalModel) Pointers() []any { return []any{&u.Name, &u.Total} }
@@ -165,9 +165,9 @@ func (u *User) ModelName() string {
 
 func (u *User) Schema() []model.Field {
 	return []model.Field{
-		{Name: "id", Type: model.FieldInt, DB: &model.FieldDB{PK: true, AutoInc: true}},
-		{Name: "name", Type: model.FieldText},
-		{Name: "age", Type: model.FieldInt},
+		{Name: "id", Type: model.Int(), DB: &model.FieldDB{PK: true, AutoInc: true}},
+		{Name: "name", Type: model.Text()},
+		{Name: "age", Type: model.Int()},
 	}
 }
 
