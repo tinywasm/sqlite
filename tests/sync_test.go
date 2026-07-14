@@ -24,6 +24,12 @@ func (u *SyncUser) Schema() []model.Field {
 }
 func (u *SyncUser) Pointers() []any { return []any{&u.ID, &u.Name, &u.Age} }
 
+// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
+// sqlite driver; it never travels over the wire.
+func (u *SyncUser) IsNil() bool                      { return u == nil }
+func (u *SyncUser) EncodeFields(w model.FieldWriter) {}
+func (u *SyncUser) DecodeFields(r model.FieldReader) {}
+
 func TestRegistration(t *testing.T) {
 	db, err := orm.Open("sqlite::memory:")
 	if err != nil {
@@ -93,6 +99,12 @@ func (u *SyncNewUser) Schema() []model.Field {
 	}
 }
 func (u *SyncNewUser) Pointers() []any { return []any{&u.ID, &u.Name, &u.Age, &u.Bio} }
+
+// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
+// sqlite driver; it never travels over the wire.
+func (u *SyncNewUser) IsNil() bool                      { return u == nil }
+func (u *SyncNewUser) EncodeFields(w model.FieldWriter) {}
+func (u *SyncNewUser) DecodeFields(r model.FieldReader) {}
 
 func TestSync(t *testing.T) {
 	db, err := sqlite.Open(":memory:")

@@ -44,6 +44,12 @@ func (o *Order) Pointers() []any {
 	return []any{&o.ID, &o.UserID, &o.Amount}
 }
 
+// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
+// sqlite driver (Create/Query/ReadAll); it never travels over the wire.
+func (o *Order) IsNil() bool                      { return o == nil }
+func (o *Order) EncodeFields(w model.FieldWriter) {}
+func (o *Order) DecodeFields(r model.FieldReader) {}
+
 func TestComplexQueriesAndJoins(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
@@ -159,6 +165,12 @@ func (u *UserTotalModel) Schema() []model.Field {
 }
 func (u *UserTotalModel) Pointers() []any { return []any{&u.Name, &u.Total} }
 
+// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
+// sqlite driver (Query/ReadAll against a temp table); it never travels over the wire.
+func (u *UserTotalModel) IsNil() bool                      { return u == nil }
+func (u *UserTotalModel) EncodeFields(w model.FieldWriter) {}
+func (u *UserTotalModel) DecodeFields(r model.FieldReader) {}
+
 func (u *User) ModelName() string {
 	return "users"
 }
@@ -174,6 +186,12 @@ func (u *User) Schema() []model.Field {
 func (u *User) Pointers() []any {
 	return []any{&u.ID, &u.Name, &u.Age}
 }
+
+// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
+// sqlite driver (Create/Query/ReadAll); it never travels over the wire.
+func (u *User) IsNil() bool                      { return u == nil }
+func (u *User) EncodeFields(w model.FieldWriter) {}
+func (u *User) DecodeFields(r model.FieldReader) {}
 
 func TestSqliteAdapter(t *testing.T) {
 	// Setup
@@ -310,17 +328,17 @@ type BadModel struct {
 	Name string
 }
 
-func (b *BadModel) ModelName() string   { return "" }
+func (b *BadModel) ModelName() string     { return "" }
 func (b *BadModel) Schema() []model.Field { return nil }
-func (b *BadModel) Pointers() []any     { return nil }
+func (b *BadModel) Pointers() []any       { return nil }
 
 type NoColsModel struct {
 	Name string
 }
 
-func (n *NoColsModel) ModelName() string   { return "no_cols" }
+func (n *NoColsModel) ModelName() string     { return "no_cols" }
 func (n *NoColsModel) Schema() []model.Field { return nil }
-func (n *NoColsModel) Pointers() []any     { return nil }
+func (n *NoColsModel) Pointers() []any       { return nil }
 
 func TestCreateTable(t *testing.T) {
 	db, err := sqlite.Open(":memory:")

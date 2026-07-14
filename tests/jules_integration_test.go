@@ -22,6 +22,12 @@ func (s *SimpleUser) Schema() []model.Field {
 }
 func (s *SimpleUser) Pointers() []any { return []any{&s.ID, &s.Email} }
 
+// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
+// sqlite driver; it never travels over the wire.
+func (s *SimpleUser) IsNil() bool                      { return s == nil }
+func (s *SimpleUser) EncodeFields(w model.FieldWriter) {}
+func (s *SimpleUser) DecodeFields(r model.FieldReader) {}
+
 type SimpleSession struct {
 	ID     string
 	UserID string
@@ -40,6 +46,12 @@ func (s *SimpleSession) SchemaExt() []ddlc.FieldExt {
 	}
 }
 func (s *SimpleSession) Pointers() []any { return []any{&s.ID, &s.UserID} }
+
+// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
+// sqlite driver; it never travels over the wire.
+func (s *SimpleSession) IsNil() bool                      { return s == nil }
+func (s *SimpleSession) EncodeFields(w model.FieldWriter) {}
+func (s *SimpleSession) DecodeFields(r model.FieldReader) {}
 
 func TestJulesScenario(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
