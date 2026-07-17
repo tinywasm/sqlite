@@ -3,8 +3,9 @@ package sqlite_test
 import (
 	"testing"
 
-	"github.com/tinywasm/ddlc"
+	"github.com/tinywasm/ddl"
 	"github.com/tinywasm/model"
+	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
 )
 
@@ -40,8 +41,8 @@ func (s *SimpleSession) Schema() []model.Field {
 		{Name: "user_id", Type: model.Text()},
 	}
 }
-func (s *SimpleSession) SchemaExt() []ddlc.FieldExt {
-	return []ddlc.FieldExt{
+func (s *SimpleSession) SchemaExt() []model.FieldExt {
+	return []model.FieldExt{
 		{Field: model.Field{Name: "user_id", Type: model.Text()}, Ref: "simple_users", RefColumn: "id"},
 	}
 }
@@ -54,20 +55,27 @@ func (s *SimpleSession) EncodeFields(w model.FieldWriter) {}
 func (s *SimpleSession) DecodeFields(r model.FieldReader) {}
 
 func TestJulesScenario(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open memory db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
+
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no DDL compiler")
+	}
+	ddldb := ddl.New(conn, dc)
+	db := orm.New(conn)
 
 	// Create SimpleUser table
-	err = db.CreateTable(&SimpleUser{})
+	err = ddldb.CreateTable(&SimpleUser{})
 	if err != nil {
 		t.Fatalf("failed to create SimpleUser table: %v", err)
 	}
 
 	// Calling CreateTable twice should return success (IF NOT EXISTS)
-	err = db.CreateTable(&SimpleUser{})
+	err = ddldb.CreateTable(&SimpleUser{})
 	if err != nil {
 		t.Fatalf("failed to create SimpleUser table (second time): %v", err)
 	}
@@ -92,7 +100,7 @@ func TestJulesScenario(t *testing.T) {
 	}
 
 	// Create SimpleSession table
-	err = db.CreateTable(&SimpleSession{})
+	err = ddldb.CreateTable(&SimpleSession{})
 	if err != nil {
 		t.Fatalf("failed to create SimpleSession table: %v", err)
 	}

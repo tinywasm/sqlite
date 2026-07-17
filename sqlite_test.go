@@ -3,11 +3,13 @@ package sqlite_test
 import (
 	"testing"
 
-	"github.com/tinywasm/ddlc"
+	"github.com/tinywasm/ddl"
 	"github.com/tinywasm/fmt"
 	"github.com/tinywasm/model"
 	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
+	"github.com/tinywasm/storage"
+	"github.com/tinywasm/storage/conformance"
 )
 
 type User struct {
@@ -34,8 +36,8 @@ func (o *Order) Schema() []model.Field {
 	}
 }
 
-func (o *Order) SchemaExt() []ddlc.FieldExt {
-	return []ddlc.FieldExt{
+func (o *Order) SchemaExt() []model.FieldExt {
+	return []model.FieldExt{
 		{Field: model.Field{Name: "user_id", Type: model.Int()}, Ref: "users", RefColumn: "id"},
 	}
 }
@@ -44,20 +46,19 @@ func (o *Order) Pointers() []any {
 	return []any{&o.ID, &o.UserID, &o.Amount}
 }
 
-// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
-// sqlite driver (Create/Query/ReadAll); it never travels over the wire.
+// IsNil, EncodeFields, DecodeFields satisfy model.Model.
 func (o *Order) IsNil() bool                      { return o == nil }
 func (o *Order) EncodeFields(w model.FieldWriter) {}
 func (o *Order) DecodeFields(r model.FieldReader) {}
 
 func TestComplexQueriesAndJoins(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
-	err = sqlite.ExecSQL(db, `
+	err = conn.Exec(`
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
@@ -72,6 +73,8 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create tables: %v", err)
 	}
+
+	db := orm.New(conn)
 
 	// Insert test data
 	users := []*User{
@@ -114,11 +117,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	}
 
 	// Test JOIN query via raw SQL
-	type UserOrder struct {
-		Name  string
-		Total float64
-	}
-	err = sqlite.ExecSQL(db, `
+	err = conn.Exec(`
 		CREATE TABLE user_totals AS
 		SELECT u.name, SUM(o.amount) as total
 		FROM users u
@@ -165,8 +164,7 @@ func (u *UserTotalModel) Schema() []model.Field {
 }
 func (u *UserTotalModel) Pointers() []any { return []any{&u.Name, &u.Total} }
 
-// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
-// sqlite driver (Query/ReadAll against a temp table); it never travels over the wire.
+// IsNil, EncodeFields, DecodeFields satisfy model.Model.
 func (u *UserTotalModel) IsNil() bool                      { return u == nil }
 func (u *UserTotalModel) EncodeFields(w model.FieldWriter) {}
 func (u *UserTotalModel) DecodeFields(r model.FieldReader) {}
@@ -187,22 +185,21 @@ func (u *User) Pointers() []any {
 	return []any{&u.ID, &u.Name, &u.Age}
 }
 
-// IsNil, EncodeFields, DecodeFields satisfy model.Model. This fixture only exercises the
-// sqlite driver (Create/Query/ReadAll); it never travels over the wire.
+// IsNil, EncodeFields, DecodeFields satisfy model.Model.
 func (u *User) IsNil() bool                      { return u == nil }
 func (u *User) EncodeFields(w model.FieldWriter) {}
 func (u *User) DecodeFields(r model.FieldReader) {}
 
 func TestSqliteAdapter(t *testing.T) {
 	// Setup
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
 	// Create table
-	err = sqlite.ExecSQL(db, `
+	err = conn.Exec(`
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
@@ -212,6 +209,8 @@ func TestSqliteAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
+
+	db := orm.New(conn)
 
 	// Test Create
 	user := &User{Name: "Alice", Age: 30}
@@ -297,7 +296,7 @@ func TestSqliteAdapter(t *testing.T) {
 }
 
 type errorExecutor struct {
-	orm.Executor
+	storage.Conn
 }
 
 func (e *errorExecutor) Close() error {
@@ -309,16 +308,16 @@ func (e *errorExecutor) Exec(query string, args ...any) error {
 }
 
 func TestCloseError(t *testing.T) {
-	fakeDB := orm.New(&errorExecutor{}, nil)
-	err := sqlite.Close(fakeDB)
+	fakeConn := &errorExecutor{}
+	err := fakeConn.Close()
 	if err == nil {
 		t.Fatalf("expected error when closing db, got nil")
 	}
 }
 
 func TestExecSQLError(t *testing.T) {
-	fakeDB := orm.New(&errorExecutor{}, nil)
-	err := sqlite.ExecSQL(fakeDB, "SELECT 1")
+	fakeConn := &errorExecutor{}
+	err := fakeConn.Exec("SELECT 1")
 	if err == nil {
 		t.Fatalf("expected error when execSQL fails, got nil")
 	}
@@ -341,17 +340,24 @@ func (n *NoColsModel) Schema() []model.Field { return nil }
 func (n *NoColsModel) Pointers() []any       { return nil }
 
 func TestCreateTable(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
-	err = db.CreateTable(&User{})
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no ddl compiler")
+	}
+	ddldb := ddl.New(conn, dc)
+
+	err = ddldb.CreateTable(&User{})
 	if err != nil {
 		t.Fatalf("CreateTable User failed: %v", err)
 	}
 
+	db := orm.New(conn)
 	// Verify table exists by inserting into it
 	user := &User{Name: "Alice", Age: 30}
 	if err := db.Create(user); err != nil {
@@ -360,22 +366,29 @@ func TestCreateTable(t *testing.T) {
 }
 
 func TestDropTable(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
-	err = db.CreateTable(&User{})
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no ddl compiler")
+	}
+	ddldb := ddl.New(conn, dc)
+
+	err = ddldb.CreateTable(&User{})
 	if err != nil {
 		t.Fatalf("CreateTable User failed: %v", err)
 	}
 
-	err = db.DropTable(&User{})
+	err = ddldb.DropTable(&User{})
 	if err != nil {
 		t.Fatalf("DropTable User failed: %v", err)
 	}
 
+	db := orm.New(conn)
 	// Verify table is gone by attempting to insert
 	user := &User{Name: "Alice", Age: 30}
 	err = db.Create(user)
@@ -385,58 +398,65 @@ func TestDropTable(t *testing.T) {
 }
 
 func TestCreateTableWithFK(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
+
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no ddl compiler")
+	}
+	ddldb := ddl.New(conn, dc)
 
 	// First create referenced table
-	err = db.CreateTable(&User{})
+	err = ddldb.CreateTable(&User{})
 	if err != nil {
 		t.Fatalf("CreateTable User failed: %v", err)
 	}
 
 	// Then create table with FK
-	err = db.CreateTable(&Order{})
+	err = ddldb.CreateTable(&Order{})
 	if err != nil {
 		t.Fatalf("CreateTable Order (with FK) failed: %v", err)
 	}
 }
 
 func TestExecutorErrors(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer sqlite.Close(db)
-
-	exec := sqlite.GetExecutor(db)
+	defer conn.Close()
 
 	// Test Exec error
-	err = exec.Exec("INVALID SQL")
+	err = conn.Exec("INVALID SQL")
 	if err == nil {
 		t.Fatalf("expected error on invalid sql format")
 	}
 
 	// Test QueryRow error
-	row := exec.QueryRow("SELECT * FROM non_existent")
+	row := conn.QueryRow("SELECT * FROM non_existent")
 	err = row.Scan()
 	if err == nil {
 		t.Fatalf("expected error scanning from invalid table")
 	}
 
 	// Test Query error
-	_, err = exec.Query("SELECT * FROM non_existent")
+	_, err = conn.Query("SELECT * FROM non_existent")
 	if err == nil {
 		t.Fatalf("expected error querying invalid table")
 	}
 
 	// BeginTx failure
-	sqlDB := sqlite.GetSqlDB(db)
+	sqlDB, ok := sqlite.GetSqlDB(conn)
+	if !ok {
+		t.Fatalf("could not get sql DB")
+	}
 	sqlDB.Close() // Force BeginTx to fail
 
-	txExec, ok := exec.(orm.TxExecutor)
+	txExec, ok := conn.(storage.TxExecutor)
 	if !ok {
 		t.Fatalf("executor does not implement TxExecutor")
 	}
@@ -447,58 +467,62 @@ func TestExecutorErrors(t *testing.T) {
 }
 
 func TestTxExecutorErrors(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
-	txExec, err := sqlite.GetTxExecutor(db)
+	txExec, ok := conn.(storage.TxExecutor)
+	if !ok {
+		t.Fatalf("not TxExecutor")
+	}
+	tx, err := txExec.BeginTx()
 	if err != nil {
 		t.Fatalf("failed to open tx: %v", err)
 	}
 
 	// Test Exec
-	err = txExec.Exec("INVALID SQL")
+	err = tx.Exec("INVALID SQL")
 	if err == nil {
 		t.Fatalf("expected error on invalid tx sql")
 	}
 
 	// Test QueryRow
-	row := txExec.QueryRow("SELECT * FROM non_existent")
+	row := tx.QueryRow("SELECT * FROM non_existent")
 	err = row.Scan()
 	if err == nil {
 		t.Fatalf("expected error scanning tx invalid table")
 	}
 
 	// Test Query
-	_, err = txExec.Query("SELECT * FROM non_existent")
+	_, err = tx.Query("SELECT * FROM non_existent")
 	if err == nil {
 		t.Fatalf("expected error querying tx invalid table")
 	}
 
 	// Rollback
-	err = txExec.Rollback()
+	err = tx.Rollback()
 	if err != nil {
 		t.Fatalf("failed rollback: %v", err)
 	}
 
-	// Commit
-	txExec2, _ := sqlite.GetTxExecutor(db)
-	err = txExec2.Commit()
+	// Commit on fresh transaction
+	tx2, _ := txExec.BeginTx()
+	err = tx2.Commit()
 	if err != nil {
 		t.Fatalf("commit failed: %v", err)
 	}
 }
 
 func TestTransaction(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
-	err = sqlite.ExecSQL(db, `
+	err = conn.Exec(`
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
@@ -508,6 +532,8 @@ func TestTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
+
+	db := orm.New(conn)
 
 	// Test Commit
 	err = db.Tx(func(tx *orm.DB) error {
@@ -551,15 +577,23 @@ func TestTransaction(t *testing.T) {
 }
 
 func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
-	if err := db.CreateTable(&User{}); err != nil {
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no ddl compiler")
+	}
+	ddldb := ddl.New(conn, dc)
+
+	if err := ddldb.CreateTable(&User{}); err != nil {
 		t.Fatalf("CreateTable: %v", err)
 	}
+
+	db := orm.New(conn)
 
 	// Insert three users.
 	seeds := []User{
@@ -616,7 +650,7 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 	}
 }
 
-func testSchemaInspector(t *testing.T, inspector orm.SchemaInspector) {
+func testSchemaInspector(t *testing.T, inspector ddl.SchemaInspector) {
 	// Test Tables()
 	tables, err := inspector.Tables()
 	if err != nil {
@@ -645,7 +679,7 @@ func testSchemaInspector(t *testing.T, inspector orm.SchemaInspector) {
 		t.Fatalf("expected 3 columns for 'users', got %d", len(cols))
 	}
 
-	colMap := make(map[string]orm.ColumnInfo)
+	colMap := make(map[string]ddl.ColumnInfo)
 	for _, col := range cols {
 		colMap[col.Name] = col
 	}
@@ -686,13 +720,13 @@ func testSchemaInspector(t *testing.T, inspector orm.SchemaInspector) {
 }
 
 func TestSchemaInspector(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
 
-	err = sqlite.ExecSQL(db, `
+	err = conn.Exec(`
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
@@ -709,25 +743,51 @@ func TestSchemaInspector(t *testing.T) {
 	}
 
 	t.Run("Executor", func(t *testing.T) {
-		exec := sqlite.GetExecutor(db)
-		inspector, ok := exec.(orm.SchemaInspector)
+		inspector, ok := conn.(ddl.SchemaInspector)
 		if !ok {
-			t.Fatalf("executor does not implement orm.SchemaInspector")
+			t.Fatalf("executor does not implement ddl.SchemaInspector")
 		}
 		testSchemaInspector(t, inspector)
 	})
 
 	t.Run("TxExecutor", func(t *testing.T) {
-		txExec, err := sqlite.GetTxExecutor(db)
+		txExec, ok := conn.(storage.TxExecutor)
+		if !ok {
+			t.Fatalf("not TxExecutor")
+		}
+		tx, err := txExec.BeginTx()
 		if err != nil {
 			t.Fatalf("failed to get tx executor: %v", err)
 		}
-		defer txExec.Rollback()
+		defer tx.Rollback()
 
-		inspector, ok := txExec.(orm.SchemaInspector)
+		inspector, ok := tx.(ddl.SchemaInspector)
 		if !ok {
-			t.Fatalf("tx executor does not implement orm.SchemaInspector")
+			t.Fatalf("tx executor does not implement ddl.SchemaInspector")
 		}
 		testSchemaInspector(t, inspector)
+	})
+}
+
+func TestSqliteAdapter_DBConformance(t *testing.T) {
+	conformance.Run(t, conformance.Factory{
+		Name: "sqlite-adapter",
+		New: func(t *testing.T, models ...model.Model) storage.Conn {
+			conn, err := sqlite.Open(":memory:")
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			dc, ok := sqlite.DDLCompiler(conn)
+			if !ok {
+				t.Fatalf("compiler does not support DDL")
+			}
+			db := ddl.New(conn, dc)
+			for _, m := range models {
+				if err := db.CreateTable(m); err != nil {
+					t.Fatalf("CreateTable: %v", err)
+				}
+			}
+			return conn
+		},
 	})
 }

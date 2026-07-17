@@ -2,43 +2,102 @@ package sqlite
 
 import (
 	"database/sql"
+	"sync"
 
-	"github.com/tinywasm/orm"
+	"github.com/tinywasm/ddl"
+	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/model"
+	"github.com/tinywasm/storage"
 )
 
-// sqliteExecutor implements orm.Executor and orm.TxExecutor.
-type sqliteExecutor struct {
-	db *sql.DB
+// sqliteConn implements storage.Conn (Executor+Compiler) plus storage.TxExecutor, ddl.TableIntrospector,
+// and ddl.SchemaInspector — everything a SQL backend can offer. Renamed from sqliteExecutor:
+// it's no longer just an Executor, storage.Conn requires the Compiler half too.
+type sqliteConn struct {
+	db       *sql.DB
+	compiler storage.Compiler // sqlt.NewCompiler() — also a ddl.Compiler
+
+	mu       sync.Mutex
+	activeTx *sql.Tx
 }
 
-func (e *sqliteExecutor) Exec(query string, args ...any) error {
-	_, err := e.db.Exec(query, args...)
+func (c *sqliteConn) Compile(q storage.Query, m model.Model) (storage.Plan, error) {
+	return c.compiler.Compile(q, m)
+}
+
+func (c *sqliteConn) CompileDDL(s ddl.Stmt, m model.Model) (string, []any, error) {
+	dc, ok := c.compiler.(ddl.Compiler)
+	if !ok {
+		return "", nil, fmt.Err("compiler does not support DDL")
+	}
+	return dc.CompileDDL(s, m)
+}
+
+func (c *sqliteConn) Exec(query string, args ...any) error {
+	c.mu.Lock()
+	tx := c.activeTx
+	c.mu.Unlock()
+
+	if tx != nil {
+		_, err := tx.Exec(query, args...)
+		return err
+	}
+	_, err := c.db.Exec(query, args...)
 	return err
 }
 
-func (e *sqliteExecutor) QueryRow(query string, args ...any) orm.Scanner {
-	return &errScanner{s: e.db.QueryRow(query, args...)}
+func (c *sqliteConn) QueryRow(query string, args ...any) storage.Scanner {
+	c.mu.Lock()
+	tx := c.activeTx
+	c.mu.Unlock()
+
+	if tx != nil {
+		return &errScanner{s: tx.QueryRow(query, args...)}
+	}
+	return &errScanner{s: c.db.QueryRow(query, args...)}
 }
 
-func (e *sqliteExecutor) Query(query string, args ...any) (orm.Rows, error) {
-	return e.db.Query(query, args...)
+func (c *sqliteConn) Query(query string, args ...any) (storage.Rows, error) {
+	c.mu.Lock()
+	tx := c.activeTx
+	c.mu.Unlock()
+
+	if tx != nil {
+		return tx.Query(query, args...)
+	}
+	return c.db.Query(query, args...)
 }
 
-func (e *sqliteExecutor) Close() error {
-	return e.db.Close()
+func (c *sqliteConn) Close() error {
+	return c.db.Close()
 }
 
-func (e *sqliteExecutor) BeginTx() (orm.TxBoundExecutor, error) {
-	tx, err := e.db.Begin()
+func (c *sqliteConn) BeginTx() (storage.TxBoundExecutor, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	tx, err := c.db.Begin()
 	if err != nil {
 		return nil, err
 	}
-	return &sqliteTxExecutor{tx: tx}, nil
+	c.activeTx = tx
+	return &sqliteTxExecutor{tx: tx, conn: c}, nil
 }
 
-// sqliteTxExecutor implements orm.TxBoundExecutor.
+func (c *sqliteConn) clearActiveTx(tx *sql.Tx) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.activeTx == tx {
+		c.activeTx = nil
+	}
+}
+
+// sqliteTxExecutor implements storage.TxBoundExecutor. It does NOT implement storage.Compiler on its
+// own (compiling doesn't depend on being inside a transaction) — callers that need to compile
+// while inside a Tx use the original sqliteConn's Compile.
 type sqliteTxExecutor struct {
-	tx *sql.Tx
+	tx   *sql.Tx
+	conn *sqliteConn
 }
 
 func (e *sqliteTxExecutor) Exec(query string, args ...any) error {
@@ -46,36 +105,45 @@ func (e *sqliteTxExecutor) Exec(query string, args ...any) error {
 	return err
 }
 
-func (e *sqliteTxExecutor) QueryRow(query string, args ...any) orm.Scanner {
+func (e *sqliteTxExecutor) QueryRow(query string, args ...any) storage.Scanner {
 	return &errScanner{s: e.tx.QueryRow(query, args...)}
 }
 
-func (e *sqliteTxExecutor) Query(query string, args ...any) (orm.Rows, error) {
+func (e *sqliteTxExecutor) Query(query string, args ...any) (storage.Rows, error) {
 	return e.tx.Query(query, args...)
 }
 
 func (e *sqliteTxExecutor) Commit() error {
-	return e.tx.Commit()
+	err := e.tx.Commit()
+	e.conn.clearActiveTx(e.tx)
+	return err
 }
 
 func (e *sqliteTxExecutor) Rollback() error {
-	return e.tx.Rollback()
+	err := e.tx.Rollback()
+	e.conn.clearActiveTx(e.tx)
+	return err
 }
 
 func (e *sqliteTxExecutor) Close() error {
-	return nil // sql.Tx doesn't have an explicit close outside of Commit/Rollback, but we must implement the interface
+	return nil // sql.Tx has no close; Commit/Rollback end it
 }
 
 type errScanner struct {
-	s orm.Scanner
+	s interface{ Scan(...any) error }
 }
 
-func (e *errScanner) Scan(dest ...any) error {
-	if err := e.s.Scan(dest...); err != nil {
-		if err == sql.ErrNoRows {
-			return orm.ErrNoRows
-		}
-		return err
+func (s *errScanner) Scan(dest ...any) error {
+	err := s.s.Scan(dest...)
+	if err == sql.ErrNoRows {
+		return storage.ErrNoRows
 	}
-	return nil
+	return err
 }
+
+var (
+	_ storage.Conn            = (*sqliteConn)(nil)
+	_ storage.TxExecutor      = (*sqliteConn)(nil)
+	_ storage.TxBoundExecutor = (*sqliteTxExecutor)(nil)
+	_ ddl.Compiler            = (*sqliteConn)(nil)
+)
