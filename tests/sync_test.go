@@ -1,11 +1,12 @@
 package sqlite_test
 
-import "github.com/tinywasm/model"
-
 import (
-	"github.com/tinywasm/orm"
-	"github.com/tinywasm/sqlite"
 	"testing"
+
+	"github.com/tinywasm/ddl"
+	"github.com/tinywasm/model"
+	"github.com/tinywasm/sqlite"
+	"github.com/tinywasm/storage"
 )
 
 type SyncUser struct {
@@ -31,41 +32,52 @@ func (u *SyncUser) EncodeFields(w model.FieldWriter) {}
 func (u *SyncUser) DecodeFields(r model.FieldReader) {}
 
 func TestRegistration(t *testing.T) {
-	db, err := orm.Open("sqlite::memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
-		t.Fatalf("failed to open via orm.Open: %v", err)
+		t.Fatalf("failed to open via sqlite.Open: %v", err)
 	}
-	db.Close()
+	conn.Close()
 }
 
 func TestErrNoRowsMapping(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open: %v", err)
 	}
-	defer db.Close()
+	defer conn.Close()
 
-	db.CreateTable(&SyncUser{})
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no ddl compiler")
+	}
+	ddldb := ddl.New(conn, dc)
+	ddldb.CreateTable(&SyncUser{})
 
 	u := &SyncUser{}
-	q := db.Query(u).Where("id").Eq(999)
-	err = q.ReadOne()
-	// orm.QB.ReadOne returns orm.ErrNotFound when it gets orm.ErrNoRows from Scan
-	if err != orm.ErrNotFound {
-		t.Errorf("expected orm.ErrNotFound, got %v", err)
+	err = dbReadOne(conn, conn, u, storage.Eq("id", 999))
+	if err != storage.ErrNoRows {
+		t.Errorf("expected storage.ErrNoRows, got %v", err)
 	}
 }
 
 func TestTableColumnsIntrospection(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open: %v", err)
 	}
-	defer db.Close()
+	defer conn.Close()
 
-	db.CreateTable(&SyncUser{})
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no ddl compiler")
+	}
+	ddldb := ddl.New(conn, dc)
+	ddldb.CreateTable(&SyncUser{})
 
-	exec := db.RawExecutor().(orm.TableIntrospector)
+	exec, ok := conn.(ddl.TableIntrospector)
+	if !ok {
+		t.Fatalf("not TableIntrospector")
+	}
 	cols, err := exec.TableColumns("users")
 	if err != nil {
 		t.Fatalf("TableColumns failed: %v", err)
@@ -107,21 +119,29 @@ func (u *SyncNewUser) EncodeFields(w model.FieldWriter) {}
 func (u *SyncNewUser) DecodeFields(r model.FieldReader) {}
 
 func TestSync(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open: %v", err)
 	}
-	defer db.Close()
+	defer conn.Close()
 
-	db.CreateTable(&SyncUser{})
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no ddl compiler")
+	}
+	ddldb := ddl.New(conn, dc)
+	ddldb.CreateTable(&SyncUser{})
 
 	// Sync to SyncNewUser (adds 'bio')
-	err = db.Sync(&SyncNewUser{})
+	err = ddldb.Sync(&SyncNewUser{})
 	if err != nil {
 		t.Fatalf("Sync failed: %v", err)
 	}
 
-	exec := db.RawExecutor().(orm.TableIntrospector)
+	exec, ok := conn.(ddl.TableIntrospector)
+	if !ok {
+		t.Fatalf("not TableIntrospector")
+	}
 	cols, _ := exec.TableColumns("users")
 	foundBio := false
 	for _, c := range cols {

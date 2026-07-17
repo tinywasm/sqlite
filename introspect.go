@@ -1,11 +1,12 @@
 package sqlite
 
 import (
-	"github.com/tinywasm/orm"
+	"github.com/tinywasm/ddl"
+	"github.com/tinywasm/storage"
 )
 
 type queryer interface {
-	Query(string, ...any) (orm.Rows, error)
+	Query(string, ...any) (storage.Rows, error)
 }
 
 func tableColumns(q queryer, table string) ([]string, error) {
@@ -32,8 +33,8 @@ func tableColumns(q queryer, table string) ([]string, error) {
 	return cols, rows.Err()
 }
 
-func (e *sqliteExecutor) TableColumns(table string) ([]string, error) {
-	return tableColumns(e, table)
+func (c *sqliteConn) TableColumns(table string) ([]string, error) {
+	return tableColumns(c, table)
 }
 
 func (e *sqliteTxExecutor) TableColumns(table string) ([]string, error) {
@@ -58,14 +59,14 @@ func tables(q queryer) ([]string, error) {
 	return tables, rows.Err()
 }
 
-func columns(q queryer, table string) ([]orm.ColumnInfo, error) {
+func columns(q queryer, table string) ([]ddl.ColumnInfo, error) {
 	rows, err := q.Query("PRAGMA table_info(\"" + table + "\")")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var cols []orm.ColumnInfo
+	var cols []ddl.ColumnInfo
 	for rows.Next() {
 		var cid int
 		var name, ctype string
@@ -74,7 +75,7 @@ func columns(q queryer, table string) ([]orm.ColumnInfo, error) {
 		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
 			return nil, err
 		}
-		cols = append(cols, orm.ColumnInfo{
+		cols = append(cols, ddl.ColumnInfo{
 			Name:    name,
 			Type:    ctype,
 			NotNull: notnull == 1,
@@ -85,13 +86,13 @@ func columns(q queryer, table string) ([]orm.ColumnInfo, error) {
 }
 
 // Tables returns all user-defined table names in the database.
-func (e *sqliteExecutor) Tables() ([]string, error) {
-	return tables(e)
+func (c *sqliteConn) Tables() ([]string, error) {
+	return tables(c)
 }
 
 // Columns returns full column metadata for the given table using PRAGMA table_info.
-func (e *sqliteExecutor) Columns(table string) ([]orm.ColumnInfo, error) {
-	return columns(e, table)
+func (c *sqliteConn) Columns(table string) ([]ddl.ColumnInfo, error) {
+	return columns(c, table)
 }
 
 // Tables returns all user-defined table names in the database.
@@ -100,14 +101,14 @@ func (e *sqliteTxExecutor) Tables() ([]string, error) {
 }
 
 // Columns returns full column metadata for the given table using PRAGMA table_info.
-func (e *sqliteTxExecutor) Columns(table string) ([]orm.ColumnInfo, error) {
+func (e *sqliteTxExecutor) Columns(table string) ([]ddl.ColumnInfo, error) {
 	return columns(e, table)
 }
 
 // Ensure both executors implement TableIntrospector
-var _ orm.TableIntrospector = (*sqliteExecutor)(nil)
-var _ orm.TableIntrospector = (*sqliteTxExecutor)(nil)
+var _ ddl.TableIntrospector = (*sqliteConn)(nil)
+var _ ddl.TableIntrospector = (*sqliteTxExecutor)(nil)
 
-// Ensure both executors implement orm.SchemaInspector
-var _ orm.SchemaInspector = (*sqliteExecutor)(nil)
-var _ orm.SchemaInspector = (*sqliteTxExecutor)(nil)
+// Ensure both executors implement ddl.SchemaInspector
+var _ ddl.SchemaInspector = (*sqliteConn)(nil)
+var _ ddl.SchemaInspector = (*sqliteTxExecutor)(nil)

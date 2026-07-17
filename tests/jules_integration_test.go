@@ -3,9 +3,10 @@ package sqlite_test
 import (
 	"testing"
 
-	"github.com/tinywasm/ddlc"
+	"github.com/tinywasm/ddl"
 	"github.com/tinywasm/model"
 	"github.com/tinywasm/sqlite"
+	"github.com/tinywasm/storage"
 )
 
 type SimpleUser struct {
@@ -40,8 +41,8 @@ func (s *SimpleSession) Schema() []model.Field {
 		{Name: "user_id", Type: model.Text()},
 	}
 }
-func (s *SimpleSession) SchemaExt() []ddlc.FieldExt {
-	return []ddlc.FieldExt{
+func (s *SimpleSession) SchemaExt() []model.FieldExt {
+	return []model.FieldExt{
 		{Field: model.Field{Name: "user_id", Type: model.Text()}, Ref: "simple_users", RefColumn: "id"},
 	}
 }
@@ -54,36 +55,40 @@ func (s *SimpleSession) EncodeFields(w model.FieldWriter) {}
 func (s *SimpleSession) DecodeFields(r model.FieldReader) {}
 
 func TestJulesScenario(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	conn, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open memory db: %v", err)
 	}
-	defer sqlite.Close(db)
+	defer conn.Close()
+
+	dc, ok := sqlite.DDLCompiler(conn)
+	if !ok {
+		t.Fatalf("no DDL compiler")
+	}
+	ddldb := ddl.New(conn, dc)
 
 	// Create SimpleUser table
-	err = db.CreateTable(&SimpleUser{})
+	err = ddldb.CreateTable(&SimpleUser{})
 	if err != nil {
 		t.Fatalf("failed to create SimpleUser table: %v", err)
 	}
 
 	// Calling CreateTable twice should return success (IF NOT EXISTS)
-	err = db.CreateTable(&SimpleUser{})
+	err = ddldb.CreateTable(&SimpleUser{})
 	if err != nil {
 		t.Fatalf("failed to create SimpleUser table (second time): %v", err)
 	}
 
 	// Insert into SimpleUser
 	user := &SimpleUser{ID: "user_123", Email: "test@example.com"}
-	err = db.Create(user)
+	err = dbCreate(conn, conn, user)
 	if err != nil {
 		t.Fatalf("failed to create simple user record: %v", err)
 	}
 
 	// Read from SimpleUser
 	var readUser SimpleUser
-	q := db.Query(&readUser)
-	q.Where("id").Eq("user_123")
-	err = q.ReadOne()
+	err = dbReadOne(conn, conn, &readUser, storage.Eq("id", "user_123"))
 	if err != nil {
 		t.Fatalf("failed to read simple user record: %v", err)
 	}
@@ -92,14 +97,14 @@ func TestJulesScenario(t *testing.T) {
 	}
 
 	// Create SimpleSession table
-	err = db.CreateTable(&SimpleSession{})
+	err = ddldb.CreateTable(&SimpleSession{})
 	if err != nil {
 		t.Fatalf("failed to create SimpleSession table: %v", err)
 	}
 
 	// Insert into SimpleSession
 	session := &SimpleSession{ID: "sess_abc", UserID: "user_123"}
-	err = db.Create(session)
+	err = dbCreate(conn, conn, session)
 	if err != nil {
 		t.Fatalf("failed to create simple session record: %v", err)
 	}

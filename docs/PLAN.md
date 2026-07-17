@@ -1,8 +1,9 @@
 ---
 PLAN: "refactor!: sqlite implementa storage.Conn (contrato movido de orm a tinywasm/storage), sin registro DSN"
 TAG: v0.3.0
-STATUS: running
+STATUS: review
 SESSION: 9952730630377277531
+PR: https://github.com/tinywasm/sqlite/pull/16
 ---
 
 # PLAN — `tinywasm/sqlite`: adapter real, migrar de `*orm.DB` a `storage.Conn`
