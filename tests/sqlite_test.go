@@ -6,7 +6,6 @@ import (
 	"github.com/tinywasm/ddl"
 	"github.com/tinywasm/fmt"
 	"github.com/tinywasm/model"
-	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
 	"github.com/tinywasm/storage"
 	"github.com/tinywasm/storage/conformance"
@@ -74,8 +73,6 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 		t.Fatalf("failed to create tables: %v", err)
 	}
 
-	db := orm.New(conn)
-
 	// Insert test data
 	users := []*User{
 		{Name: "Alice", Age: 30},
@@ -83,7 +80,7 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 		{Name: "Charlie", Age: 30},
 	}
 	for _, u := range users {
-		if err := db.Create(u); err != nil {
+		if err := dbCreate(conn, conn, u); err != nil {
 			t.Fatalf("Create user failed: %v", err)
 		}
 	}
@@ -94,18 +91,17 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 		{UserID: 2, Amount: 50.0},
 	}
 	for _, o := range orders {
-		if err := db.Create(o); err != nil {
+		if err := dbCreate(conn, conn, o); err != nil {
 			t.Fatalf("Create order failed: %v", err)
 		}
 	}
 
-	// Test Fluent API: GroupBy, OrderBy, Limit, Offset
+	// Test GroupBy, OrderBy, Limit, Offset
 	var results []*User
-	q := db.Query(&User{})
-	q.GroupBy("age").OrderBy("age").Desc().Limit(1).Offset(0)
-	err = q.ReadAll(func() model.Model { return &User{} }, func(m model.Model) {
-		results = append(results, m.(*User))
-	})
+	err = dbReadAll(conn, conn, &User{}, func() model.Model { return &User{} },
+		readAllOpts{OrderBy: []storage.Order{storage.Desc("age")}, GroupBy: []string{"age"}, Limit: 1, Offset: 0},
+		func(m model.Model) { results = append(results, m.(*User)) },
+	)
 	if err != nil {
 		t.Fatalf("ReadAll with GroupBy/OrderBy/Limit/Offset failed: %v", err)
 	}
@@ -129,11 +125,10 @@ func TestComplexQueriesAndJoins(t *testing.T) {
 	}
 
 	var totals []UserTotalModel
-	qtotals := db.Query(&UserTotalModel{})
-	qtotals.OrderBy("total").Desc()
-	err = qtotals.ReadAll(func() model.Model { return &UserTotalModel{} }, func(m model.Model) {
-		totals = append(totals, *m.(*UserTotalModel))
-	})
+	err = dbReadAll(conn, conn, &UserTotalModel{}, func() model.Model { return &UserTotalModel{} },
+		readAllOpts{OrderBy: []storage.Order{storage.Desc("total")}},
+		func(m model.Model) { totals = append(totals, *m.(*UserTotalModel)) },
+	)
 	if err != nil {
 		t.Fatalf("ReadAll for user_totals failed: %v", err)
 	}
@@ -210,19 +205,15 @@ func TestSqliteAdapter(t *testing.T) {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	db := orm.New(conn)
-
 	// Test Create
 	user := &User{Name: "Alice", Age: 30}
-	if err := db.Create(user); err != nil {
+	if err := dbCreate(conn, conn, user); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
 	// Test ReadOne
 	readUser := &User{}
-	q := db.Query(readUser)
-	q.Where("name").Eq("Alice")
-	if err := q.ReadOne(); err != nil {
+	if err := dbReadOne(conn, conn, readUser, storage.Eq("name", "Alice")); err != nil {
 		t.Fatalf("ReadOne failed: %v", err)
 	}
 	if readUser.Name != "Alice" {
@@ -230,15 +221,13 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 
 	// Test Update
-	if err := db.Update(&User{ID: readUser.ID, Name: "Alice", Age: 31}, orm.Eq("name", "Alice")); err != nil {
+	if err := dbUpdate(conn, conn, &User{ID: readUser.ID, Name: "Alice", Age: 31}, storage.Eq("name", "Alice")); err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
 
 	// Verify Update
 	readUser = &User{}
-	q = db.Query(readUser)
-	q.Where("name").Eq("Alice")
-	if err := q.ReadOne(); err != nil {
+	if err := dbReadOne(conn, conn, readUser, storage.Eq("name", "Alice")); err != nil {
 		t.Fatalf("ReadOne after Update failed: %v", err)
 	}
 	if readUser.Age != 31 {
@@ -246,15 +235,10 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 
 	// Test ReadAll
-	db.Create(&User{Name: "Bob", Age: 25})
+	dbCreate(conn, conn, &User{Name: "Bob", Age: 25})
 	var users []*User
-	q = db.Query(&User{})
-	err = q.ReadAll(func() model.Model {
-		u := &User{}
-		return u
-	}, func(m model.Model) {
-		users = append(users, m.(*User))
-	})
+	err = dbReadAll(conn, conn, &User{}, func() model.Model { return &User{} }, readAllOpts{},
+		func(m model.Model) { users = append(users, m.(*User)) })
 	if err != nil {
 		t.Fatalf("ReadAll failed: %v", err)
 	}
@@ -264,11 +248,9 @@ func TestSqliteAdapter(t *testing.T) {
 
 	// Test IN operator
 	var inUsers []*User
-	qIn := db.Query(&User{})
-	qIn.Where("name").In([]any{"Alice", "Bob"})
-	err = qIn.ReadAll(func() model.Model { return &User{} }, func(m model.Model) {
-		inUsers = append(inUsers, m.(*User))
-	})
+	err = dbReadAll(conn, conn, &User{}, func() model.Model { return &User{} },
+		readAllOpts{Conditions: []storage.Condition{storage.In("name", []any{"Alice", "Bob"})}},
+		func(m model.Model) { inUsers = append(inUsers, m.(*User)) })
 	if err != nil {
 		t.Fatalf("IN ReadAll failed: %v", err)
 	}
@@ -277,16 +259,14 @@ func TestSqliteAdapter(t *testing.T) {
 	}
 
 	// Test Delete
-	if err := db.Delete(&User{}, orm.Eq("name", "Bob")); err != nil {
+	if err := dbDelete(conn, conn, &User{}, storage.Eq("name", "Bob")); err != nil {
 		t.Fatalf("Delete failed: %v", err)
 	}
 
 	// Verify Delete
 	users = nil
-	q = db.Query(&User{})
-	err = q.ReadAll(func() model.Model { return &User{} }, func(m model.Model) {
-		users = append(users, m.(*User))
-	})
+	err = dbReadAll(conn, conn, &User{}, func() model.Model { return &User{} }, readAllOpts{},
+		func(m model.Model) { users = append(users, m.(*User)) })
 	if err != nil {
 		t.Fatalf("ReadAll after Delete failed: %v", err)
 	}
@@ -357,10 +337,9 @@ func TestCreateTable(t *testing.T) {
 		t.Fatalf("CreateTable User failed: %v", err)
 	}
 
-	db := orm.New(conn)
 	// Verify table exists by inserting into it
 	user := &User{Name: "Alice", Age: 30}
-	if err := db.Create(user); err != nil {
+	if err := dbCreate(conn, conn, user); err != nil {
 		t.Fatalf("Create User record failed after CreateTable: %v", err)
 	}
 }
@@ -388,10 +367,9 @@ func TestDropTable(t *testing.T) {
 		t.Fatalf("DropTable User failed: %v", err)
 	}
 
-	db := orm.New(conn)
 	// Verify table is gone by attempting to insert
 	user := &User{Name: "Alice", Age: 30}
-	err = db.Create(user)
+	err = dbCreate(conn, conn, user)
 	if err == nil {
 		t.Fatalf("Expected error inserting into dropped table, got nil")
 	}
@@ -533,46 +511,47 @@ func TestTransaction(t *testing.T) {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	db := orm.New(conn)
+	txExec, ok := conn.(storage.TxExecutor)
+	if !ok {
+		t.Fatalf("not TxExecutor")
+	}
 
 	// Test Commit
-	err = db.Tx(func(tx *orm.DB) error {
-		if err := tx.Create(&User{Name: "Charlie", Age: 40}); err != nil {
-			return err
-		}
-		return nil
-	})
+	tx, err := txExec.BeginTx()
 	if err != nil {
+		t.Fatalf("BeginTx failed: %v", err)
+	}
+	if err := dbCreate(conn, tx, &User{Name: "Charlie", Age: 40}); err != nil {
+		tx.Rollback()
+		t.Fatalf("tx Create failed: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
 		t.Fatalf("Tx commit failed: %v", err)
 	}
 
 	// Verify Commit
 	readUser := &User{}
-	q := db.Query(readUser)
-	q.Where("name").Eq("Charlie")
-	if err := q.ReadOne(); err != nil {
+	if err := dbReadOne(conn, conn, readUser, storage.Eq("name", "Charlie")); err != nil {
 		t.Fatalf("ReadOne failed: %v", err)
 	}
 
 	// Test Rollback
-	err = db.Tx(func(tx *orm.DB) error {
-		if err := tx.Create(&User{Name: "Dave", Age: 50}); err != nil {
-			return err
-		}
-		return fmt.Err("rollback")
-	})
-	if err == nil {
-		t.Fatalf("Tx rollback should have returned error")
+	tx, err = txExec.BeginTx()
+	if err != nil {
+		t.Fatalf("BeginTx failed: %v", err)
+	}
+	if err := dbCreate(conn, tx, &User{Name: "Dave", Age: 50}); err != nil {
+		tx.Rollback()
+		t.Fatalf("tx Create failed: %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("Tx rollback failed: %v", err)
 	}
 
 	// Verify Rollback
 	readUser = &User{}
-	q = db.Query(readUser)
-	q.Where("name").Eq("Dave")
-	if err := q.ReadOne(); err == nil {
-		if readUser.Name != "" {
-			t.Errorf("ReadOne should have failed (not found) or returned empty, but got name: %s", readUser.Name)
-		}
+	if err := dbReadOne(conn, conn, readUser, storage.Eq("name", "Dave")); err == nil {
+		t.Errorf("expected Dave not to be found after rollback, but ReadOne succeeded with name: %s", readUser.Name)
 	}
 }
 
@@ -593,8 +572,6 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 		t.Fatalf("CreateTable: %v", err)
 	}
 
-	db := orm.New(conn)
-
 	// Insert three users.
 	seeds := []User{
 		{Name: "Alice", Age: 30},
@@ -602,18 +579,15 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 		{Name: "Charlie", Age: 20},
 	}
 	for i := range seeds {
-		if err := db.Create(&seeds[i]); err != nil {
+		if err := dbCreate(conn, conn, &seeds[i]); err != nil {
 			t.Fatalf("Create %s: %v", seeds[i].Name, err)
 		}
 	}
 
 	// Read them back to obtain DB-assigned IDs.
 	var users []*User
-	q := db.Query(&User{})
-	err = q.ReadAll(
-		func() model.Model { return &User{} },
-		func(m model.Model) { users = append(users, m.(*User)) },
-	)
+	err = dbReadAll(conn, conn, &User{}, func() model.Model { return &User{} }, readAllOpts{},
+		func(m model.Model) { users = append(users, m.(*User)) })
 	if err != nil {
 		t.Fatalf("ReadAll: %v", err)
 	}
@@ -621,27 +595,31 @@ func TestUpdate_ExplicitPK_MultiRow(t *testing.T) {
 		t.Fatalf("expected 3 users, got %d", len(users))
 	}
 
-	// Update each user's age in a loop using an explicit PK condition.
-	err = db.Tx(func(tx *orm.DB) error {
-		for _, u := range users {
-			u.Age += 10
-			if err := tx.Update(u, orm.Eq("id", u.ID)); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	// Update each user's age in a loop using an explicit PK condition, inside a Tx.
+	txExec, ok := conn.(storage.TxExecutor)
+	if !ok {
+		t.Fatalf("not TxExecutor")
+	}
+	tx, err := txExec.BeginTx()
 	if err != nil {
-		t.Fatalf("Tx multi-row Update: %v", err)
+		t.Fatalf("BeginTx: %v", err)
+	}
+	for _, u := range users {
+		u.Age += 10
+		if err := dbUpdate(conn, tx, u, storage.Eq("id", u.ID)); err != nil {
+			tx.Rollback()
+			t.Fatalf("tx Update: %v", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Tx multi-row Update commit: %v", err)
 	}
 
 	// Verify each row was updated independently.
 	wantAges := map[int]int{users[0].ID: 40, users[1].ID: 35, users[2].ID: 30}
 	for _, u := range users {
 		got := &User{}
-		q := db.Query(got)
-		q.Where("id").Eq(u.ID)
-		if err := q.ReadOne(); err != nil {
+		if err := dbReadOne(conn, conn, got, storage.Eq("id", u.ID)); err != nil {
 			t.Fatalf("ReadOne user %d: %v", u.ID, err)
 		}
 		if got.Age != wantAges[u.ID] {

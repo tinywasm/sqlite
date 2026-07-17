@@ -5,8 +5,8 @@ import (
 
 	"github.com/tinywasm/ddl"
 	"github.com/tinywasm/model"
-	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
+	"github.com/tinywasm/storage"
 )
 
 type SyncUser struct {
@@ -53,13 +53,10 @@ func TestErrNoRowsMapping(t *testing.T) {
 	ddldb := ddl.New(conn, dc)
 	ddldb.CreateTable(&SyncUser{})
 
-	db := orm.New(conn)
 	u := &SyncUser{}
-	q := db.Query(u).Where("id").Eq(999)
-	err = q.ReadOne()
-	// orm.QB.ReadOne returns orm.ErrNotFound when it gets storage.ErrNoRows from Scan
-	if err != orm.ErrNotFound {
-		t.Errorf("expected orm.ErrNotFound, got %v", err)
+	err = dbReadOne(conn, conn, u, storage.Eq("id", 999))
+	if err != storage.ErrNoRows {
+		t.Errorf("expected storage.ErrNoRows, got %v", err)
 	}
 }
 

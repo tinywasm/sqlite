@@ -5,8 +5,8 @@ import (
 
 	"github.com/tinywasm/ddl"
 	"github.com/tinywasm/model"
-	"github.com/tinywasm/orm"
 	"github.com/tinywasm/sqlite"
+	"github.com/tinywasm/storage"
 )
 
 type SimpleUser struct {
@@ -66,7 +66,6 @@ func TestJulesScenario(t *testing.T) {
 		t.Fatalf("no DDL compiler")
 	}
 	ddldb := ddl.New(conn, dc)
-	db := orm.New(conn)
 
 	// Create SimpleUser table
 	err = ddldb.CreateTable(&SimpleUser{})
@@ -82,16 +81,14 @@ func TestJulesScenario(t *testing.T) {
 
 	// Insert into SimpleUser
 	user := &SimpleUser{ID: "user_123", Email: "test@example.com"}
-	err = db.Create(user)
+	err = dbCreate(conn, conn, user)
 	if err != nil {
 		t.Fatalf("failed to create simple user record: %v", err)
 	}
 
 	// Read from SimpleUser
 	var readUser SimpleUser
-	q := db.Query(&readUser)
-	q.Where("id").Eq("user_123")
-	err = q.ReadOne()
+	err = dbReadOne(conn, conn, &readUser, storage.Eq("id", "user_123"))
 	if err != nil {
 		t.Fatalf("failed to read simple user record: %v", err)
 	}
@@ -107,7 +104,7 @@ func TestJulesScenario(t *testing.T) {
 
 	// Insert into SimpleSession
 	session := &SimpleSession{ID: "sess_abc", UserID: "user_123"}
-	err = db.Create(session)
+	err = dbCreate(conn, conn, session)
 	if err != nil {
 		t.Fatalf("failed to create simple session record: %v", err)
 	}
