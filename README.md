@@ -1,4 +1,4 @@
-# sqlite
+# tinywasm/sqlite
 <img src="docs/img/badges.svg">
 
 This is the `tinywasm/sqlite` adapter for `github.com/tinywasm/orm`.
